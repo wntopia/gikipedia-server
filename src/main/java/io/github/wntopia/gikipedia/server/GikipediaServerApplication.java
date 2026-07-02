@@ -4,10 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class Application {
+public class GikipediaServerApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(Application.class, args);
+	static void main(String[] args) {
+		SpringApplication.run(GikipediaServerApplication.class, args);
 	}
 
 }
