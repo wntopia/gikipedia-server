@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Cache Mill dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.mill
+            out/mill-build
+          key: ${{ runner.os }}-mill-${{ hashFiles('build.mill') }}
+          restore-keys: |
+            ${{ runner.os }}-mill-
+
+      - name: Set up Mill
+        uses: zhutmost/setup-mill@v1.3.0
+        with:
+          mill-version: 1.1.7
+
+      - name: Compile
+        run: mill compile
+
+      - name: Test
+        run: mill test
+
+      - name: Check formatting
+        run: mill spotless --check
+
+      - name: Assemble
+        run: mill assembly
