@@ -1,0 +1,79 @@
+package build
+
+import _root_.mill.*
+import _root_.mill.javalib.*
+import _root_.mill.javalib.spotless.*
+import _root_.mill.javalib.spring.boot.*
+
+object `package` extends MavenModule, SpringBootModule, SpotlessModule {
+  def artifactName = "gikipedia-server"
+  def springBootPlatformVersion = "4.1.0"
+  def mainClass = Some("io.github.wntopia.gikipedia.server.GikipediaServerApplication")
+  def jvmVersion = "25"
+
+  def bomMvnDeps: T[Seq[Dep]] = Seq(
+    mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
+    mvn"org.springframework.modulith:spring-modulith-bom:2.1.0"
+  )
+
+  def mvnDeps: T[Seq[Dep]] = Seq(
+    mvn"org.springframework.boot:spring-boot-starter-data-jpa",
+    mvn"org.springframework.boot:spring-boot-starter-data-redis",
+    mvn"org.springframework.boot:spring-boot-starter-mongodb",
+    mvn"org.springframework.boot:spring-boot-starter-security",
+    mvn"org.springframework.boot:spring-boot-starter-thymeleaf",
+    mvn"org.springframework.boot:spring-boot-starter-webmvc",
+    mvn"org.springframework.modulith:spring-modulith-starter-core",
+    mvn"org.springframework.modulith:spring-modulith-starter-jpa",
+    mvn"org.thymeleaf.extras:thymeleaf-extras-springsecurity6"
+  )
+
+  def compileMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
+  def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
+  def runMvnDeps: T[Seq[Dep]] = Seq(mvn"com.mysql:mysql-connector-j")
+
+  def spotlessFormats: Task[Seq[Format]] = Task {
+    Seq(
+      Format(
+        includes = Seq("glob:**.java"),
+        steps = Seq(Format.GoogleJavaFormat())
+      ),
+      Format(
+        includes = Seq(
+          "glob:*.json",
+          "glob:*.md",
+          "glob:*.toml",
+          "glob:*.yaml",
+          "glob:*.yml",
+          "glob:src/**/*.json",
+          "glob:src/**/*.md",
+          "glob:src/**/*.toml",
+          "glob:src/**/*.yaml",
+          "glob:src/**/*.yml"
+        ),
+        steps = Seq(Format.TrimTrailingWhitespace())
+      )
+    )
+  }
+
+  object test extends MavenTests, SpringBootTestsModule, TestModule.Junit5 {
+    def bomMvnDeps: T[Seq[Dep]] = Seq(
+      mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
+      mvn"org.springframework.modulith:spring-modulith-bom:2.1.0"
+    )
+
+    def mvnDeps: T[Seq[Dep]] = Seq(
+      mvn"org.springframework.boot:spring-boot-starter-data-jpa-test",
+      mvn"org.springframework.boot:spring-boot-starter-data-redis-test",
+      mvn"org.springframework.boot:spring-boot-starter-mongodb-test",
+      mvn"org.springframework.boot:spring-boot-starter-security-test",
+      mvn"org.springframework.boot:spring-boot-starter-thymeleaf-test",
+      mvn"org.springframework.boot:spring-boot-starter-webmvc-test",
+      mvn"org.springframework.modulith:spring-modulith-starter-test"
+    )
+
+    def compileMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
+    def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
+    def runMvnDeps: T[Seq[Dep]] = Seq(mvn"org.junit.platform:junit-platform-launcher")
+  }
+}

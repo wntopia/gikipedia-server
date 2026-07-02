@@ -6,8 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class GikipediaServerApplication {
 
-	static void main(String[] args) {
-		SpringApplication.run(GikipediaServerApplication.class, args);
-	}
-
+  static void main(String[] args) {
+    SpringApplication.run(GikipediaServerApplication.class, args);
+  }
 }

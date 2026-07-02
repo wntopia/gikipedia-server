@@ -1,7 +1,8 @@
-# Gradle
-.gradle/
-build/
+# Build output
 out/
+build/
+.gradle/
+.bsp/
 
 # Java
 *.class
@@ -50,6 +51,3 @@ coverage/
 # Temporary files
 tmp/
 temp/
-
-# Keep the Gradle wrapper executable jar versioned.
-!gradle/wrapper/gradle-wrapper.jar

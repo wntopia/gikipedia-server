@@ -13,8 +13,8 @@ overrides:
   claude/settings: true
   claude/hooks/secret-guard: true
   claude/hooks/command-guard: true
-  claude/hooks/gradle-test: true
-  claude/hooks/spotless: true
+  claude/hooks/gradle-test: false
+  claude/hooks/spotless: false
 
   codex/skills/kotest-guide: false
   codex/skills/kotlin-spring-arch: false
@@ -25,8 +25,8 @@ overrides:
   codex/hooks-json: true
   codex/hooks/secret-guard: true
   codex/hooks/command-guard: true
-  codex/hooks/gradle-test: true
-  codex/hooks/spotless: true
+  codex/hooks/gradle-test: false
+  codex/hooks/spotless: false
 
 base_branch: main
 language: ko
