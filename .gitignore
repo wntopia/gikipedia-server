@@ -23,7 +23,8 @@ application-*.local.yml
 application-*.local.yaml
 
 # IDEs
-.idea/
+.idea/*
+!.idea/externalDependencies.xml
 *.iml
 *.ipr
 *.iws
