@@ -1,3 +1,49 @@
 spring:
   application:
     name: gikipedia.server
+  session:
+    store-type: redis
+    timeout: 30d
+    redis:
+      namespace: gikipedia:session
+  security:
+    oauth2:
+      client:
+        registration:
+          datagsm:
+            client-id: ${DATAGSM_OAUTH_CLIENT_ID:}
+            client-secret: ${DATAGSM_OAUTH_CLIENT_SECRET:}
+            redirect-uri: ${DATAGSM_OAUTH_REDIRECT_URI:http://localhost:8080/api/v1/oauth/datagsm/callback}
+            scope: ${DATAGSM_OAUTH_SCOPE:self:read}
+            success-redirect-uri: ${DATAGSM_OAUTH_SUCCESS_REDIRECT_URI:/}
+            failure-redirect-uri: ${DATAGSM_OAUTH_FAILURE_REDIRECT_URI:/signin?error}
+        provider:
+          datagsm:
+            authorization-uri: ${DATAGSM_OAUTH_AUTHORIZATION_URI:https://oauth.authorization.datagsm.kr/v1/oauth/authorize}
+            token-uri: ${DATAGSM_OAUTH_TOKEN_URI:https://oauth.authorization.datagsm.kr/v1/oauth/token}
+            user-info-uri: ${DATAGSM_OAUTH_USER_INFO_URI:https://oauth.resource.datagsm.kr/userinfo}
+
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  response:
+    enabled: true
+    not-wrapping-urls:
+      - "/v3/api-docs/**"
+      - "/v3/api-docs"
+      - "/swagger-ui/**"
+      - "/api/v1/oauth/datagsm/**"
+  swagger:
+    enabled: true
+    title: "Gikipedia API"
+    description: "Gikipedia API Documentation"
+    version: "v1"
+    group: "gikipedia-api"
+    paths-to-match:
+      - "/api/v1/**"
+  exception:
+    enabled: true
+    use-english-message: false
