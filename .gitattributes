@@ -1,0 +1,22 @@
+* text=auto eol=lf
+
+# Scripts
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Gradle wrapper and other binaries
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+
+# GitHub Linguist language statistics
+*.json linguist-language=JSON linguist-detectable=true
+*.md linguist-language=Markdown linguist-detectable=true
