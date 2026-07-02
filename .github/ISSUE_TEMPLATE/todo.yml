@@ -1,0 +1,38 @@
+name: ToDo
+description: Track implementation work, refactoring, or maintenance tasks.
+title: "[ToDo] "
+labels:
+  - todo
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What needs to be done?
+      placeholder: Describe the task clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What files, domains, or behaviors are in scope?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for this issue to be complete?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Constraints, references, or implementation hints.
+    validations:
+      required: false
