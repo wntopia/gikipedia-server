@@ -22,6 +22,10 @@ spring:
             authorization-uri: ${DATAGSM_OAUTH_AUTHORIZATION_URI:https://oauth.authorization.datagsm.kr/v1/oauth/authorize}
             token-uri: ${DATAGSM_OAUTH_TOKEN_URI:https://oauth.authorization.datagsm.kr/v1/oauth/token}
             user-info-uri: ${DATAGSM_OAUTH_USER_INFO_URI:https://oauth.resource.datagsm.kr/userinfo}
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+        - http://localhost:3001
 
 sdk:
   logging:
