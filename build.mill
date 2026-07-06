@@ -29,11 +29,19 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
     mvn"org.springframework.modulith:spring-modulith-starter-jpa",
     mvn"org.thymeleaf.extras:thymeleaf-extras-springsecurity6",
     mvn"com.github.themoment-team:datagsm-oauth-sdk-java:1.5.0",
-    mvn"com.github.themoment-team:the-sdk:1.4"
+    mvn"com.github.themoment-team:the-sdk:1.4",
+    mvn"io.github.openfeign.querydsl:querydsl-jpa:$querydslVersion"
   )
 
+  def querydslVersion = "7.4.0"
+
   def compileMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
-  def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
+  def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(
+    mvn"org.projectlombok:lombok",
+    mvn"io.github.openfeign.querydsl:querydsl-apt:$querydslVersion;classifier=jakarta",
+    mvn"jakarta.persistence:jakarta.persistence-api",
+    mvn"jakarta.annotation:jakarta.annotation-api"
+  )
   def runMvnDeps: T[Seq[Dep]] = Seq(mvn"com.mysql:mysql-connector-j")
 
   def spotlessFormats: Task[Seq[Format]] = Task {
