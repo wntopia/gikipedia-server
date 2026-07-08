@@ -20,7 +20,7 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
   def mvnDeps: T[Seq[Dep]] = Seq(
     mvn"org.springframework.boot:spring-boot-starter-data-jpa",
     mvn"org.springframework.boot:spring-boot-starter-data-redis",
-    mvn"org.springframework.boot:spring-boot-starter-mongodb",
+    mvn"org.springframework.boot:spring-boot-starter-data-mongodb",
     mvn"org.springframework.boot:spring-boot-starter-security",
     mvn"org.springframework.boot:spring-boot-starter-thymeleaf",
     mvn"org.springframework.boot:spring-boot-starter-webmvc",
@@ -77,7 +77,7 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
     def mvnDeps: T[Seq[Dep]] = Seq(
       mvn"org.springframework.boot:spring-boot-starter-data-jpa-test",
       mvn"org.springframework.boot:spring-boot-starter-data-redis-test",
-      mvn"org.springframework.boot:spring-boot-starter-mongodb-test",
+      mvn"org.springframework.boot:spring-boot-starter-data-mongodb-test",
       mvn"org.springframework.boot:spring-boot-starter-security-test",
       mvn"org.springframework.boot:spring-boot-starter-thymeleaf-test",
       mvn"org.springframework.boot:spring-boot-starter-webmvc-test",
