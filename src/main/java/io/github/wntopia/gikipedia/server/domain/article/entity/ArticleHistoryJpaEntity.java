@@ -21,25 +21,31 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
 @Getter
-@Table(name = "articles")
+@Table(name = "article_histories")
 @EntityListeners(AuditingEntityListener.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ArticleJpaEntity {
+public class ArticleHistoryJpaEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "id", nullable = false, updatable = false)
   private Long id;
 
-  @Column(name = "title", nullable = false, length = 255)
-  private String title;
-
-  @Column(name = "content", nullable = false, columnDefinition = "TEXT")
-  private String content;
-
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "parent_id")
-  private ArticleJpaEntity parent;
+  @JoinColumn(name = "article_id", nullable = false, updatable = false)
+  private ArticleJpaEntity article;
+
+  /** 문서별 순차 리비전 번호(1부터 시작). diff 순차 적용 및 버전 지칭에 사용된다. */
+  @Column(name = "revision", nullable = false, updatable = false)
+  private Integer revision;
+
+  /** 수정자 식별자. "학번 + 이름" 형식의 문자열(예: "2412 홍길동"). */
+  @Column(name = "editor", nullable = false, updatable = false, length = 255)
+  private String editor;
+
+  /** 이전 리비전 대비 변경분. unified diff(패치) 문자열. */
+  @Column(name = "diff", nullable = false, updatable = false, columnDefinition = "TEXT")
+  private String diff;
 
   @CreatedDate
   @Column(name = "created_at", nullable = false, updatable = false)
@@ -50,9 +56,11 @@ public class ArticleJpaEntity {
   private Instant updatedAt;
 
   @Builder
-  private ArticleJpaEntity(String title, String content, ArticleJpaEntity parent) {
-    this.title = title;
-    this.content = content;
-    this.parent = parent;
+  private ArticleHistoryJpaEntity(
+      ArticleJpaEntity article, Integer revision, String editor, String diff) {
+    this.article = article;
+    this.revision = revision;
+    this.editor = editor;
+    this.diff = diff;
   }
 }
