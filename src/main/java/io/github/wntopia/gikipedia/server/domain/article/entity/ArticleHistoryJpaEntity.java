@@ -1,35 +1,29 @@
 package io.github.wntopia.gikipedia.server.domain.article.entity;
 
+import io.github.wntopia.gikipedia.server.global.entity.BaseJpaEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+/**
+ * 위키 문서의 수정 내역(이벤트)을 append-only로 저장하는 엔티티.
+ *
+ * <p>이벤트 소싱의 이벤트 스트림에 해당한다. 문서의 현재 상태는 {@link ArticleJpaEntity}가 스냅샷으로
+ * 유지하고, 이 테이블에는 수정이 일어날 때마다 이전 리비전 대비 변경분(diff)을 한 건씩 쌓기만 한다.
+ * 특정 시점의 문서 내용을 복원하려면 revision 1부터 대상 리비전까지의 diff를 순서대로 적용한다.
+ */
 @Entity
 @Getter
 @Table(name = "article_histories")
-@EntityListeners(AuditingEntityListener.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ArticleHistoryJpaEntity {
-
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "id", nullable = false, updatable = false)
-  private Long id;
+public class ArticleHistoryJpaEntity extends BaseJpaEntity {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "article_id", nullable = false, updatable = false)
@@ -46,14 +40,6 @@ public class ArticleHistoryJpaEntity {
   /** 이전 리비전 대비 변경분. unified diff(패치) 문자열. */
   @Column(name = "diff", nullable = false, updatable = false, columnDefinition = "TEXT")
   private String diff;
-
-  @CreatedDate
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private Instant createdAt;
-
-  @LastModifiedDate
-  @Column(name = "updated_at", nullable = false)
-  private Instant updatedAt;
 
   @Builder
   private ArticleHistoryJpaEntity(
