@@ -9,12 +9,9 @@ import org.springframework.data.annotation.LastModifiedDate;
 @Getter
 public abstract class BaseMongoEntity {
 
-  @Id
-  private String id;
+  @Id private String id;
 
-  @CreatedDate
-  private Instant createdAt;
+  @CreatedDate private Instant createdAt;
 
-  @LastModifiedDate
-  private Instant updatedAt;
+  @LastModifiedDate private Instant updatedAt;
 }
