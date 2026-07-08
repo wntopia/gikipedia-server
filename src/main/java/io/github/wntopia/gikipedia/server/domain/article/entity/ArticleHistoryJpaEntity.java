@@ -15,9 +15,8 @@ import lombok.NoArgsConstructor;
 /**
  * 위키 문서의 수정 내역(이벤트)을 append-only로 저장하는 엔티티.
  *
- * <p>이벤트 소싱의 이벤트 스트림에 해당한다. 문서의 현재 상태는 {@link ArticleJpaEntity}가 스냅샷으로
- * 유지하고, 이 테이블에는 수정이 일어날 때마다 이전 리비전 대비 변경분(diff)을 한 건씩 쌓기만 한다.
- * 특정 시점의 문서 내용을 복원하려면 revision 1부터 대상 리비전까지의 diff를 순서대로 적용한다.
+ * <p>이벤트 소싱의 이벤트 스트림에 해당한다. 문서의 현재 상태는 {@link ArticleJpaEntity}가 스냅샷으로 유지하고, 이 테이블에는 수정이 일어날 때마다 이전
+ * 리비전 대비 변경분(diff)을 한 건씩 쌓기만 한다. 특정 시점의 문서 내용을 복원하려면 revision 1부터 대상 리비전까지의 diff를 순서대로 적용한다.
  */
 @Entity
 @Getter
