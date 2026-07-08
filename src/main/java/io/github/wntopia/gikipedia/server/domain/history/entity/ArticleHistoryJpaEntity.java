@@ -1,5 +1,6 @@
-package io.github.wntopia.gikipedia.server.domain.article.entity;
+package io.github.wntopia.gikipedia.server.domain.history.entity;
 
+import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity;
 import io.github.wntopia.gikipedia.server.global.entity.BaseJpaEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
