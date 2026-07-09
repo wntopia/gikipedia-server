@@ -1,16 +1,48 @@
 package build
 
 import _root_.mill.*
-import _root_.mill.javalib.*
+import _root_.mill.api.BuildCtx
+import _root_.mill.kotlinlib.*
 import _root_.mill.javalib.spotless.*
 import _root_.mill.javalib.spring.boot.*
 
-object `package` extends MavenModule, SpringBootModule, SpotlessModule {
+val kotlinVer = "2.2.0"
+
+object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
   def artifactName = "gikipedia-server"
   def springBootPlatformVersion = "4.1.0"
-  def mainClass = Some("io.github.wntopia.gikipedia.server.GikipediaServerApplication")
+  def mainClass = Some("io.github.wntopia.gikipedia.server.GikipediaServerApplicationKt")
   def jvmVersion = "25"
+  def kotlinVersion = kotlinVer
   def repositories: T[Seq[String]] = super.repositories() ++ Seq("https://jitpack.io")
+
+  // kotlin-spring(all-open) + kotlin-jpa(no-arg) 컴파일러 플러그인.
+  // Spring이 프록시·인스턴스화하는 클래스(@Configuration, @Service 등)를 open으로,
+  // JPA 엔티티에 합성 무인자 생성자를 자동 생성한다.
+  def kotlincPluginMvnDeps: T[Seq[Dep]] = Seq(
+    mvn"org.jetbrains.kotlin:kotlin-allopen-compiler-plugin:$kotlinVer",
+    mvn"org.jetbrains.kotlin:kotlin-noarg-compiler-plugin:$kotlinVer"
+  )
+
+  def kotlincOptions: T[Seq[String]] = super.kotlincOptions() ++ Seq(
+    "-jvm-target",
+    "17",
+    "-Xjsr305=strict",
+    // @JsonProperty/@BindParam 등을 파라미터뿐 아니라 프로퍼티/필드에도 적용 (Jackson 역직렬화 정합성)
+    "-Xannotation-default-target=param-property",
+    // Spring 스테레오타입 + JPA 엔티티를 모두 open으로 (지연 로딩 프록시 대응)
+    "-P",
+    "plugin:org.jetbrains.kotlin.allopen:preset=spring",
+    "-P",
+    "plugin:org.jetbrains.kotlin.allopen:annotation=jakarta.persistence.Entity",
+    "-P",
+    "plugin:org.jetbrains.kotlin.allopen:annotation=jakarta.persistence.MappedSuperclass",
+    "-P",
+    "plugin:org.jetbrains.kotlin.allopen:annotation=jakarta.persistence.Embeddable",
+    // JPA 엔티티에 합성 무인자 생성자 생성
+    "-P",
+    "plugin:org.jetbrains.kotlin.noarg:preset=jpa"
+  )
 
   def bomMvnDeps: T[Seq[Dep]] = Seq(
     mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
@@ -18,6 +50,8 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
   )
 
   def mvnDeps: T[Seq[Dep]] = Seq(
+    mvn"org.jetbrains.kotlin:kotlin-reflect",
+    mvn"com.fasterxml.jackson.module:jackson-module-kotlin",
     mvn"org.springframework.boot:spring-boot-starter-data-jpa",
     mvn"org.springframework.boot:spring-boot-starter-data-redis",
     mvn"org.springframework.boot:spring-boot-starter-data-mongodb",
@@ -35,40 +69,39 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
 
   def querydslVersion = "7.4.0"
 
-  def compileMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
-  def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(
-    mvn"org.projectlombok:lombok",
-    mvn"io.github.openfeign.querydsl:querydsl-apt:$querydslVersion;classifier=jakarta",
-    mvn"jakarta.persistence:jakarta.persistence-api",
-    mvn"jakarta.annotation:jakarta.annotation-api"
-  )
   def runMvnDeps: T[Seq[Dep]] = Seq(mvn"com.mysql:mysql-connector-j")
 
   def spotlessFormats: Task[Seq[Format]] = Task {
-    Seq(
-      Format(
-        includes = Seq("glob:**.java"),
-        steps = Seq(Format.GoogleJavaFormat())
-      ),
-      Format(
-        includes = Seq(
-          "glob:*.json",
-          "glob:*.md",
-          "glob:*.toml",
-          "glob:*.yaml",
-          "glob:*.yml",
-          "glob:src/**/*.json",
-          "glob:src/**/*.md",
-          "glob:src/**/*.toml",
-          "glob:src/**/*.yaml",
-          "glob:src/**/*.yml"
-        ),
-        steps = Seq(Format.TrimTrailingWhitespace())
-      )
-    )
+    // KtLint().configFile 기본값(.editorconfig)의 상대 경로 참조를 해석하기 위해
+    // 기본 구현과 동일하게 파일시스템 체커를 끄고 동적 루트를 지정한다.
+    BuildCtx.withFilesystemCheckerDisabled {
+      Format.RelPathRef.withDynamicRoot(moduleDir) {
+        Seq(
+          Format(
+            includes = Seq("glob:**.kt", "glob:**.kts"),
+            steps = Seq(Format.KtLint())
+          ),
+          Format(
+            includes = Seq(
+              "glob:*.json",
+              "glob:*.md",
+              "glob:*.toml",
+              "glob:*.yaml",
+              "glob:*.yml",
+              "glob:src/**/*.json",
+              "glob:src/**/*.md",
+              "glob:src/**/*.toml",
+              "glob:src/**/*.yaml",
+              "glob:src/**/*.yml"
+            ),
+            steps = Seq(Format.TrimTrailingWhitespace())
+          )
+        )
+      }
+    }
   }
 
-  object test extends MavenTests, SpringBootTestsModule, TestModule.Junit5 {
+  object test extends KotlinMavenTests, SpringBootTestsModule, TestModule.Junit5 {
     def bomMvnDeps: T[Seq[Dep]] = Seq(
       mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
       mvn"org.springframework.modulith:spring-modulith-bom:2.1.0"
@@ -84,8 +117,6 @@ object `package` extends MavenModule, SpringBootModule, SpotlessModule {
       mvn"org.springframework.modulith:spring-modulith-starter-test"
     )
 
-    def compileMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
-    def annotationProcessorsMvnDeps: T[Seq[Dep]] = Seq(mvn"org.projectlombok:lombok")
     def runMvnDeps: T[Seq[Dep]] = Seq(mvn"org.junit.platform:junit-platform-launcher")
   }
 }
