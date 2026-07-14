@@ -3,7 +3,6 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleValidator
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
 import org.springframework.http.HttpStatus
@@ -15,7 +14,6 @@ import team.themoment.sdk.exception.ExpectedException
 class UpdateArticleServiceImpl(
     private val articleRepository: ArticleRepository,
     private val r2Uploader: R2Uploader,
-    private val articleValidator: ArticleValidator,
 ) : UpdateArticleService {
     @Transactional
     override fun execute(
@@ -26,7 +24,6 @@ class UpdateArticleServiceImpl(
             articleRepository
                 .findById(articleId)
                 .orElseThrow { ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND) }
-        articleValidator.validate(reqDto.title, reqDto.content)
 
         val imageUrl =
             reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, IMAGE_KEY_PREFIX) }

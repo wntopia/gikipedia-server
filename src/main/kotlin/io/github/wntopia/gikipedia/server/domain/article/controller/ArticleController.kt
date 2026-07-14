@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
+import jakarta.validation.Valid
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
@@ -25,7 +26,7 @@ class ArticleController(
 ) {
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun create(
-        @ModelAttribute reqDto: CreateArticleReqDto,
+        @Valid @ModelAttribute reqDto: CreateArticleReqDto,
     ): CommonApiResponse<ArticleResDto> = CommonApiResponse.created("", createArticleService.execute(reqDto))
 
     @GetMapping("/{articleId}")
@@ -36,6 +37,6 @@ class ArticleController(
     @PutMapping("/{articleId}", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun update(
         @PathVariable articleId: Long,
-        @ModelAttribute reqDto: UpdateArticleReqDto,
+        @Valid @ModelAttribute reqDto: UpdateArticleReqDto,
     ): ArticleResDto = updateArticleService.execute(articleId, reqDto)
 }
