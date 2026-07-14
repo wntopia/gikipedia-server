@@ -41,7 +41,7 @@ class R2Uploader(
 
     private fun publicUrlBase(): String {
         if (!StringUtils.hasText(environment.publicUrl)) {
-            throw IllegalStateException("r2.public-url must be configured")
+            throw IllegalStateException("spring.cloud.cloudflare.public-url must be configured")
         }
         return environment.publicUrl!!.trimEnd('/')
     }

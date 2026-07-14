@@ -30,6 +30,13 @@ spring:
       allowed-origins:
         - http://localhost:3000
         - http://localhost:3001
+  cloud:
+    cloudflare:
+      bucket: ${R2_BUCKET:}
+      endpoint: ${R2_ENDPOINT:}
+      access-key: ${R2_ACCESS_KEY_ID:}
+      secret-key: ${R2_SECRET_ACCESS_KEY:}
+      public-url: ${R2_PUBLIC_URL:}
 
 sdk:
   logging:
@@ -55,10 +62,3 @@ sdk:
   exception:
     enabled: true
     use-english-message: false
-
-r2:
-  bucket: ${R2_BUCKET:}
-  endpoint: ${R2_ENDPOINT:}
-  access-key: ${R2_ACCESS_KEY_ID:}
-  secret-key: ${R2_SECRET_ACCESS_KEY:}
-  public-url: ${R2_PUBLIC_URL:}

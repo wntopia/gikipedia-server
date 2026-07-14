@@ -17,14 +17,14 @@ class R2Config(
     fun s3Client(): S3Client =
         S3Client
             .builder()
-            .endpointOverride(URI.create(requireProperty(environment.endpoint, "r2.endpoint")))
+            .endpointOverride(URI.create(requireProperty(environment.endpoint, "spring.cloud.cloudflare.endpoint")))
             .region(Region.of("auto"))
             .forcePathStyle(true)
             .credentialsProvider(
                 StaticCredentialsProvider.create(
                     AwsBasicCredentials.create(
-                        requireProperty(environment.accessKey, "r2.access-key"),
-                        requireProperty(environment.secretKey, "r2.secret-key"),
+                        requireProperty(environment.accessKey, "spring.cloud.cloudflare.access-key"),
+                        requireProperty(environment.secretKey, "spring.cloud.cloudflare.secret-key"),
                     ),
                 ),
             ).build()
