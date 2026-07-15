@@ -1,6 +1,10 @@
 spring:
   application:
     name: gikipedia.server
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   session:
     store-type: redis
     timeout: 30d
@@ -26,6 +30,13 @@ spring:
       allowed-origins:
         - http://localhost:3000
         - http://localhost:3001
+  cloud:
+    cloudflare:
+      bucket: ${R2_BUCKET:}
+      endpoint: ${R2_ENDPOINT:}
+      access-key: ${R2_ACCESS_KEY_ID:}
+      secret-key: ${R2_SECRET_ACCESS_KEY:}
+      public-url: ${R2_PUBLIC_URL:}
 
 sdk:
   logging:
