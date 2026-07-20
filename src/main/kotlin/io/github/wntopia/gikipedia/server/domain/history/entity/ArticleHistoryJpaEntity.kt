@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import jakarta.persistence.UniqueConstraint
 
 /**
  * 위키 문서의 수정 내역(이벤트)을 append-only로 저장하는 엔티티.
@@ -16,7 +17,15 @@ import jakarta.persistence.Table
  * 변경분(diff)을 한 건씩 쌓기만 한다. 특정 시점의 문서 내용을 복원하려면 revision 1부터 대상 리비전까지의 diff를 순서대로 적용한다.
  */
 @Entity
-@Table(name = "article_histories")
+@Table(
+    name = "article_histories",
+    uniqueConstraints = [
+        UniqueConstraint(
+            name = "uk_history_article_revision",
+            columnNames = ["article_id", "revision"],
+        ),
+    ],
+)
 class ArticleHistoryJpaEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "article_id", nullable = false, updatable = false)
