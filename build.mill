@@ -68,7 +68,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
     mvn"com.github.themoment-team:datagsm-oauth-sdk-java:1.5.0",
     mvn"com.github.themoment-team:the-sdk:1.4",
     mvn"io.github.openfeign.querydsl:querydsl-jpa:$querydslVersion",
-    mvn"io.github.java-diff-utils:java-diff-utils:4.15",
+    mvn"io.github.java-diff-utils:java-diff-utils:4.17",
     mvn"com.github.ben-manes.caffeine:caffeine",
     mvn"software.amazon.awssdk:s3",
     mvn"software.amazon.awssdk:url-connection-client"
