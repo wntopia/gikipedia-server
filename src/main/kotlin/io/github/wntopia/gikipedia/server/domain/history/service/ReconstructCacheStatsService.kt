@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
-import com.github.benmanes.caffeine.cache.Cache
 import io.github.wntopia.gikipedia.server.domain.history.dto.response.CacheStatsResDto
 import io.github.wntopia.gikipedia.server.domain.history.service.impl.ReconstructArticleServiceImpl
 import org.springframework.cache.CacheManager
@@ -17,8 +16,8 @@ class ReconstructCacheStatsService(
             cacheManager.getCache(ReconstructArticleServiceImpl.ARTICLE_REVISION_CACHE) as? CaffeineCache
                 ?: return EMPTY
 
-        @Suppress("UNCHECKED_CAST")
-        val nativeCache = cache.nativeCache as Cache<Any, Any>
+        // 통계·크기 조회만 하며 키/값 타입과 무관하므로 raw nativeCache를 그대로 쓴다. 캐시에 쓰기는 하지 않는다.
+        val nativeCache = cache.nativeCache
         val stats = nativeCache.stats()
         return CacheStatsResDto(
             hitCount = stats.hitCount(),
