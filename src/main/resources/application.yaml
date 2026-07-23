@@ -38,6 +38,16 @@ spring:
       secret-key: ${R2_SECRET_ACCESS_KEY:}
       public-url: ${R2_PUBLIC_URL:}
 
+app:
+  cache:
+    article-revision:
+      max-entries: ${ARTICLE_REVISION_CACHE_MAX_ENTRIES:10000}
+      ttl-hours: ${ARTICLE_REVISION_CACHE_TTL_HOURS:6}
+
+article:
+  snapshot:
+    interval: ${ARTICLE_SNAPSHOT_INTERVAL:10}
+
 sdk:
   logging:
     enabled: true

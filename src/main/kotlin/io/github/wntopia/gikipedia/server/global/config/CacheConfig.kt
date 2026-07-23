@@ -12,26 +12,24 @@ import java.time.Duration
 /**
  * 재구성된 과거 리비전 문서를 위한 Caffeine 캐시.
  *
- * 과거 리비전은 불변이라 무효화가 필요 없고 TTL만 둔다. 히트/미스 통계를 지표로 노출하기 위해 recordStats를 켠다. 다중 인스턴스 환경에서는 Redis로 전환할 수 있다(로드맵).
+ * 과거 리비전은 불변이라 무효화가 필요 없고 TTL만 둔다. 히트/미스 통계를 지표로 노출하기 위해 recordStats를 켠다. 크기·TTL은 [CacheEnvironment]로 외부화되어 재컴파일 없이 조정할 수
+ * 있다. 다중 인스턴스 환경에서는 Redis로 전환할 수 있다(로드맵).
  */
 @Configuration
 @EnableCaching
-class CacheConfig {
+class CacheConfig(
+    private val environment: CacheEnvironment,
+) {
     @Bean
     fun cacheManager(): CacheManager {
         val manager = CaffeineCacheManager(ReconstructArticleServiceImpl.ARTICLE_REVISION_CACHE)
         manager.setCaffeine(
             Caffeine
                 .newBuilder()
-                .maximumSize(MAX_ENTRIES)
-                .expireAfterAccess(Duration.ofHours(TTL_HOURS))
+                .maximumSize(environment.maxEntries)
+                .expireAfterAccess(Duration.ofHours(environment.ttlHours))
                 .recordStats(),
         )
         return manager
-    }
-
-    companion object {
-        private const val MAX_ENTRIES = 10_000L
-        private const val TTL_HOURS = 6L
     }
 }
