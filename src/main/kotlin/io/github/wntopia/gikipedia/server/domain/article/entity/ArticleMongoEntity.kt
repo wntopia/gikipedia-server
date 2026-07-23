@@ -11,8 +11,8 @@ import org.springframework.data.mongodb.core.mapping.Field
  */
 @Document(collection = "articles")
 class ArticleMongoEntity(
-    @Field("document_id") val documentId: Long,
-    @Field("title") val title: String,
-    @Field("content") val content: String,
-    @Field("revision") val revision: Int,
+    @field:Field("document_id") val documentId: Long,
+    @field:Field("title") val title: String,
+    @field:Field("content") val content: String,
+    @field:Field("revision") val revision: Int,
 ) : BaseMongoEntity()

@@ -28,12 +28,12 @@ import jakarta.persistence.UniqueConstraint
     ],
 )
 class ArticleSnapshotJpaEntity(
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "article_id", nullable = false, updatable = false)
+    @field:ManyToOne(fetch = FetchType.LAZY)
+    @field:JoinColumn(name = "article_id", nullable = false, updatable = false)
     val article: ArticleJpaEntity,
     /** 이 스냅샷이 나타내는 리비전 번호. */
-    @Column(name = "revision", nullable = false, updatable = false) val revision: Int,
+    @field:Column(name = "revision", nullable = false, updatable = false) val revision: Int,
     /** 해당 리비전 시점의 문서 전체 내용. */
-    @Column(name = "content", nullable = false, updatable = false, columnDefinition = "TEXT")
+    @field:Column(name = "content", nullable = false, updatable = false, columnDefinition = "TEXT")
     val content: String,
 ) : BaseJpaEntity()

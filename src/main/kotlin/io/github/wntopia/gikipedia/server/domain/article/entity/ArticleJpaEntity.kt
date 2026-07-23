@@ -14,19 +14,19 @@ class ArticleJpaEntity(
     title: String,
     content: String,
     imageUrl: String? = null,
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "parent_id")
+    @field:ManyToOne(fetch = FetchType.LAZY)
+    @field:JoinColumn(name = "parent_id")
     val parent: ArticleJpaEntity? = null,
 ) : BaseJpaEntity() {
-    @Column(name = "title", nullable = false, length = 255)
+    @field:Column(name = "title", nullable = false, length = 255)
     var title: String = title
         protected set
 
-    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
+    @field:Column(name = "content", nullable = false, columnDefinition = "TEXT")
     var content: String = content
         protected set
 
-    @Column(name = "image_url", length = 2048)
+    @field:Column(name = "image_url", length = 2048)
     var imageUrl: String? = imageUrl
         protected set
 

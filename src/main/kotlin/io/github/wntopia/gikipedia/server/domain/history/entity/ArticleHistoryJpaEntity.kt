@@ -27,14 +27,14 @@ import jakarta.persistence.UniqueConstraint
     ],
 )
 class ArticleHistoryJpaEntity(
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "article_id", nullable = false, updatable = false)
+    @field:ManyToOne(fetch = FetchType.LAZY)
+    @field:JoinColumn(name = "article_id", nullable = false, updatable = false)
     val article: ArticleJpaEntity,
     /** 문서별 순차 리비전 번호(1부터 시작). diff 순차 적용 및 버전 지칭에 사용된다. */
-    @Column(name = "revision", nullable = false, updatable = false) val revision: Int,
+    @field:Column(name = "revision", nullable = false, updatable = false) val revision: Int,
     /** 수정자 식별자. "학번 + 이름" 형식의 문자열(예: "2412 홍길동"). */
-    @Column(name = "editor", nullable = false, updatable = false, length = 255) val editor: String,
+    @field:Column(name = "editor", nullable = false, updatable = false, length = 255) val editor: String,
     /** 이전 리비전 대비 변경분. unified diff(패치) 문자열. */
-    @Column(name = "diff", nullable = false, updatable = false, columnDefinition = "TEXT")
+    @field:Column(name = "diff", nullable = false, updatable = false, columnDefinition = "TEXT")
     val diff: String,
 ) : BaseJpaEntity()
