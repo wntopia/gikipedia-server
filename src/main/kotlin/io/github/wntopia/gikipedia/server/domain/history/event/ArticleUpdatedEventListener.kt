@@ -23,6 +23,11 @@ class ArticleUpdatedEventListener(
     fun syncLatestView(event: ArticleUpdatedEvent) {
         try {
             val existing = articleMongoRepository.findByDocumentId(event.articleId)
+            // 리스너 간 반영 완료 순서가 보장되지 않으므로, 더 낮은 리비전이 늦게 도착해 최신 뷰를 후퇴시키지 않도록
+            // 들어온 리비전이 현재 저장된 것보다 클 때만 반영한다(순서 역전 방어).
+            if (existing != null && event.revision <= existing.revision) {
+                return
+            }
             existing?.let { articleMongoRepository.delete(it) }
             articleMongoRepository.save(
                 ArticleMongoEntity(
