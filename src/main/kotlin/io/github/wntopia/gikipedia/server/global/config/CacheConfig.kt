@@ -13,7 +13,7 @@ import java.time.Duration
  * 재구성된 과거 리비전 문서를 위한 Caffeine 캐시.
  *
  * 과거 리비전은 불변이라 무효화가 필요 없고 TTL만 둔다. 히트/미스 통계를 지표로 노출하기 위해 recordStats를 켠다. 크기·TTL은 [CacheEnvironment]로 외부화되어 재컴파일 없이 조정할 수
- * 있다. 다중 인스턴스 환경에서는 Redis로 전환할 수 있다(로드맵).
+ * 있다.
  */
 @Configuration
 @EnableCaching
