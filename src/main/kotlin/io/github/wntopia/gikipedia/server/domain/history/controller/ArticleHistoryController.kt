@@ -5,6 +5,8 @@ import io.github.wntopia.gikipedia.server.domain.history.dto.response.ArticleRev
 import io.github.wntopia.gikipedia.server.domain.history.dto.response.CacheStatsResDto
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructCacheStatsService
+import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
+import jakarta.servlet.http.HttpSession
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 class ArticleHistoryController(
     private val reconstructArticleService: ReconstructArticleService,
     private val reconstructCacheStatsService: ReconstructCacheStatsService,
+    private val authenticationReader: AuthenticationReader,
 ) {
     /** 특정 리비전 시점으로 재구성된 문서. */
     @GetMapping("/{articleId}/revisions/{revision}")
@@ -31,5 +34,8 @@ class ArticleHistoryController(
 
     /** 재구성 캐시 히트/미스 통계. */
     @GetMapping("/revisions/cache-stats")
-    fun cacheStats(): CacheStatsResDto = reconstructCacheStatsService.stats()
+    fun cacheStats(session: HttpSession): CacheStatsResDto {
+        authenticationReader.requireAdmin(session)
+        return reconstructCacheStatsService.stats()
+    }
 }

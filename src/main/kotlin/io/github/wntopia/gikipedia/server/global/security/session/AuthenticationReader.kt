@@ -18,4 +18,17 @@ class AuthenticationReader {
                 ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
         return "${student.studentNumber ?: "?"} ${student.name ?: "?"}"
     }
+
+    fun requireAdmin(session: HttpSession) {
+        val role =
+            getCurrentUser(session)?.role
+                ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
+        if (role !in ADMIN_ROLES) {
+            throw ExpectedException("관리자만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    companion object {
+        private val ADMIN_ROLES = setOf("ADMIN", "ROOT")
+    }
 }
