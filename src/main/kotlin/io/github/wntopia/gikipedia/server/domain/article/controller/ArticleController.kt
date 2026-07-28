@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
+import jakarta.servlet.http.HttpSession
 import jakarta.validation.Valid
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
@@ -38,5 +39,6 @@ class ArticleController(
     fun update(
         @PathVariable articleId: Long,
         @Valid @ModelAttribute reqDto: UpdateArticleReqDto,
-    ): ArticleResDto = updateArticleService.execute(articleId, reqDto)
+        session: HttpSession,
+    ): ArticleResDto = updateArticleService.execute(articleId, reqDto, session)
 }

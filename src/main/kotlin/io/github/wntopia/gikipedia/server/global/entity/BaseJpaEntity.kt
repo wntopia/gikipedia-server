@@ -14,18 +14,18 @@ import java.time.Instant
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
 abstract class BaseJpaEntity {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false, updatable = false)
+    @field:Id
+    @field:GeneratedValue(strategy = GenerationType.IDENTITY)
+    @field:Column(name = "id", nullable = false, updatable = false)
     val id: Long? = null
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
+    @field:CreatedDate
+    @field:Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant? = null
         protected set
 
-    @LastModifiedDate
-    @Column(name = "updated_at", nullable = false)
+    @field:LastModifiedDate
+    @field:Column(name = "updated_at", nullable = false)
     var updatedAt: Instant? = null
         protected set
 }
