@@ -3,7 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleMongoRepository
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.global.config.ArticleReadEnvironment
 import io.github.wntopia.gikipedia.server.global.config.ArticleReadSource
@@ -16,7 +16,7 @@ import team.themoment.sdk.exception.ExpectedException
 class QueryArticleServiceImpl(
     private val articleRepository: ArticleRepository,
     private val articleMongoRepository: ArticleMongoRepository,
-    private val articleCacheService: ArticleCacheService,
+    private val articleCacheStore: ArticleCacheStore,
     private val readEnvironment: ArticleReadEnvironment,
 ) : QueryArticleService {
     @Transactional(readOnly = true)
@@ -38,12 +38,12 @@ class QueryArticleServiceImpl(
      * 그래야 동기화 지연/실패가 가려지지 않고 드러난다.
      */
     private fun queryFromCacheOrMongo(articleId: Long): ArticleResDto {
-        articleCacheService.get(articleId)?.let { return it }
+        articleCacheStore.get(articleId)?.let { return it }
 
         val fromMongo =
             articleMongoRepository.findByDocumentId(articleId)?.let(ArticleResDto::from)
                 ?: throw notFound()
-        articleCacheService.put(fromMongo)
+        articleCacheStore.put(fromMongo)
         return fromMongo
     }
 

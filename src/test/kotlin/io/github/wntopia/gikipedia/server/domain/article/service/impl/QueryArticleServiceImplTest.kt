@@ -5,7 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleMongoRepository
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.global.config.ArticleReadEnvironment
 import io.github.wntopia.gikipedia.server.global.config.ArticleReadSource
 import org.assertj.core.api.Assertions.assertThat
@@ -26,7 +26,7 @@ import java.util.Optional
 class QueryArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val articleMongoRepository = mock<ArticleMongoRepository>()
-    private val articleCacheService = mock<ArticleCacheService>()
+    private val articleCacheStore = mock<ArticleCacheStore>()
 
     private val article = ArticleJpaEntity(title = "제목", content = "내용")
 
@@ -39,7 +39,7 @@ class QueryArticleServiceImplTest {
         QueryArticleServiceImpl(
             articleRepository,
             articleMongoRepository,
-            articleCacheService,
+            articleCacheStore,
             ArticleReadEnvironment(source),
         )
 
@@ -51,7 +51,7 @@ class QueryArticleServiceImplTest {
         val result = service(ArticleReadSource.MYSQL).execute(1L)
 
         assertThat(result.id).isEqualTo(1L)
-        verify(articleCacheService, never()).get(org.mockito.kotlin.any())
+        verify(articleCacheStore, never()).get(org.mockito.kotlin.any())
         verify(articleMongoRepository, never()).findByDocumentId(org.mockito.kotlin.any())
     }
 
@@ -59,7 +59,7 @@ class QueryArticleServiceImplTest {
     @DisplayName("REDIS_MONGO 모드에서 캐시 히트면 Mongo를 조회하지 않는다")
     fun cacheHitSkipsMongo() {
         val cached = ArticleResDto(1L, "제목", "내용", null, Instant.now(), Instant.now())
-        whenever(articleCacheService.get(1L)).thenReturn(cached)
+        whenever(articleCacheStore.get(1L)).thenReturn(cached)
 
         val result = service(ArticleReadSource.REDIS_MONGO).execute(1L)
 
@@ -70,7 +70,7 @@ class QueryArticleServiceImplTest {
     @Test
     @DisplayName("캐시 미스면 Mongo를 조회하고, 결과를 캐시에 backfill한다")
     fun cacheMissFallsBackToMongoAndBackfills() {
-        whenever(articleCacheService.get(1L)).thenReturn(null)
+        whenever(articleCacheStore.get(1L)).thenReturn(null)
         val mongoEntity =
             ArticleMongoEntity(
                 documentId = 1L,
@@ -86,13 +86,13 @@ class QueryArticleServiceImplTest {
         val result = service(ArticleReadSource.REDIS_MONGO).execute(1L)
 
         assertThat(result.id).isEqualTo(1L)
-        verify(articleCacheService).put(result)
+        verify(articleCacheStore).put(result)
     }
 
     @Test
     @DisplayName("캐시와 Mongo 모두 미스면 MySQL로 폴백하지 않고 그대로 404를 던진다")
     fun bothMissThrowsNotFoundWithoutMysqlFallback() {
-        whenever(articleCacheService.get(1L)).thenReturn(null)
+        whenever(articleCacheStore.get(1L)).thenReturn(null)
         whenever(articleMongoRepository.findByDocumentId(1L)).thenReturn(null)
 
         assertThatThrownBy { service(ArticleReadSource.REDIS_MONGO).execute(1L) }

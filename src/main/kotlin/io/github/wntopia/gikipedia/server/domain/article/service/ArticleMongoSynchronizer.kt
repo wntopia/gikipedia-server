@@ -23,7 +23,7 @@ import org.springframework.stereotype.Component
  * 이벤트 payload는 articleId/revision만 담고(스키마 안정성) 실제 데이터는 여기서 MySQL을 재조회해 채운다.
  */
 @Component
-class ArticleMongoSyncService(
+class ArticleMongoSynchronizer(
     private val articleRepository: ArticleRepository,
     private val mongoTemplate: MongoTemplate,
 ) {

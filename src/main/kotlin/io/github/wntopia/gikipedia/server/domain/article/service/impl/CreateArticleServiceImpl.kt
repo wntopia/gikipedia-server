@@ -4,7 +4,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
@@ -17,7 +17,7 @@ class CreateArticleServiceImpl(
     private val articleRepository: ArticleRepository,
     private val r2Uploader: R2Uploader,
     private val eventPublisher: ApplicationEventPublisher,
-    private val articleCacheService: ArticleCacheService,
+    private val articleCacheStore: ArticleCacheStore,
 ) : CreateArticleService {
     @Transactional
     override fun execute(reqDto: CreateArticleReqDto): ArticleResDto {
@@ -29,7 +29,7 @@ class CreateArticleServiceImpl(
         eventPublisher.publishEvent(ArticleUpdatedEvent(requireNotNull(saved.id), BASELINE_REVISION))
 
         val response = ArticleResDto.from(saved)
-        articleCacheService.putAfterCommit(response)
+        articleCacheStore.putAfterCommit(response)
         return response
     }
 

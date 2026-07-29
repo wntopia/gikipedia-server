@@ -24,10 +24,10 @@ import java.util.Optional
  * upsert-then-guarded-update 방식 검증: 신규 삽입은 setOnInsert만으로 끝나고(추가 갱신 없음),
  * 기존 문서 갱신은 후속 updateFirst로 이어지며, MySQL에 없는 article은 Mongo를 아예 건드리지 않는다.
  */
-class ArticleMongoSyncServiceTest {
+class ArticleMongoSynchronizerTest {
     private val articleRepository = mock<ArticleRepository>()
     private val mongoTemplate = mock<MongoTemplate>()
-    private val service = ArticleMongoSyncService(articleRepository, mongoTemplate)
+    private val service = ArticleMongoSynchronizer(articleRepository, mongoTemplate)
 
     private val article = ArticleJpaEntity(title = "제목", content = "내용")
 

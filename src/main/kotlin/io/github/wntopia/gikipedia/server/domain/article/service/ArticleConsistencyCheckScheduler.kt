@@ -18,7 +18,7 @@ class ArticleConsistencyCheckScheduler(
     private val articleRepository: ArticleRepository,
     private val articleHistoryRepository: ArticleHistoryRepository,
     private val articleMongoRepository: ArticleMongoRepository,
-    private val articleMongoSyncService: ArticleMongoSyncService,
+    private val articleMongoSynchronizer: ArticleMongoSynchronizer,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -50,7 +50,7 @@ class ArticleConsistencyCheckScheduler(
                         trueRevision,
                         mongoRevision,
                     )
-                    articleMongoSyncService.sync(articleId, trueRevision)
+                    articleMongoSynchronizer.sync(articleId, trueRevision)
                 }
             }
 

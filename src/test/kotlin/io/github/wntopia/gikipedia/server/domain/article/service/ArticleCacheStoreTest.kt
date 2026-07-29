@@ -17,10 +17,10 @@ import java.time.Duration
 import java.time.Instant
 
 /** putAfterCommit이 트랜잭션 유무에 따라 SET 시점을 올바르게 미루는지 검증. */
-class ArticleCacheServiceTest {
+class ArticleCacheStoreTest {
     private val redisTemplate = mock<RedisTemplate<String, ArticleResDto>>()
     private val valueOps = mock<ValueOperations<String, ArticleResDto>>()
-    private val service = ArticleCacheService(redisTemplate, ArticleCacheEnvironment(ttlMinutes = 60))
+    private val service = ArticleCacheStore(redisTemplate, ArticleCacheEnvironment(ttlMinutes = 60))
 
     private val article = ArticleResDto(1L, "제목", "내용", null, Instant.now(), Instant.now())
 

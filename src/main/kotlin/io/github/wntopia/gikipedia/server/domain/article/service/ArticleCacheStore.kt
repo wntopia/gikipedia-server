@@ -15,7 +15,7 @@ import java.time.Duration
  * 원자성(Lua 등)을 확보할 실익이 없다고 판단했다.
  */
 @Component
-class ArticleCacheService(
+class ArticleCacheStore(
     private val articleCacheRedisTemplate: RedisTemplate<String, ArticleResDto>,
     private val environment: ArticleCacheEnvironment,
 ) {

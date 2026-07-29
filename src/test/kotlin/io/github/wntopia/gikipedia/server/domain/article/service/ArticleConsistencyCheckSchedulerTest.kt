@@ -28,14 +28,14 @@ class ArticleConsistencyCheckSchedulerTest {
     private val articleRepository = mock<ArticleRepository>()
     private val articleHistoryRepository = mock<ArticleHistoryRepository>()
     private val articleMongoRepository = mock<ArticleMongoRepository>()
-    private val articleMongoSyncService = mock<ArticleMongoSyncService>()
+    private val articleMongoSynchronizer = mock<ArticleMongoSynchronizer>()
 
     private val scheduler =
         ArticleConsistencyCheckScheduler(
             articleRepository,
             articleHistoryRepository,
             articleMongoRepository,
-            articleMongoSyncService,
+            articleMongoSynchronizer,
         )
 
     private fun mongoDoc(
@@ -51,7 +51,7 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSyncService, never()).sync(any(), any())
+        verify(articleMongoSynchronizer, never()).sync(any(), any())
     }
 
     @Test
@@ -62,7 +62,7 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSyncService).sync(eq(1L), eq(5))
+        verify(articleMongoSynchronizer).sync(eq(1L), eq(5))
     }
 
     @Test
@@ -74,6 +74,6 @@ class ArticleConsistencyCheckSchedulerTest {
         scheduler.checkAndRepair()
 
         // 히스토리가 없는(=한 번도 수정 안 된) 문서의 정답 리비전은 1이다.
-        verify(articleMongoSyncService).sync(eq(1L), eq(1))
+        verify(articleMongoSynchronizer).sync(eq(1L), eq(1))
     }
 }

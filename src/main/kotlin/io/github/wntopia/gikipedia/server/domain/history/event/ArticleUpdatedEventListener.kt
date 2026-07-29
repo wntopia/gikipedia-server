@@ -1,6 +1,6 @@
 package io.github.wntopia.gikipedia.server.domain.history.event
 
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleMongoSyncService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleMongoSynchronizer
 import org.springframework.modulith.events.ApplicationModuleListener
 import org.springframework.stereotype.Component
 
@@ -15,10 +15,10 @@ import org.springframework.stereotype.Component
  */
 @Component
 class ArticleUpdatedEventListener(
-    private val articleMongoSyncService: ArticleMongoSyncService,
+    private val articleMongoSynchronizer: ArticleMongoSynchronizer,
 ) {
     @ApplicationModuleListener
     fun syncLatestView(event: ArticleUpdatedEvent) {
-        articleMongoSyncService.sync(event.articleId, event.revision)
+        articleMongoSynchronizer.sync(event.articleId, event.revision)
     }
 }

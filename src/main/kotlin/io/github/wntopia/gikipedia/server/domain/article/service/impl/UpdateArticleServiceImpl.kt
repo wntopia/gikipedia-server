@@ -3,7 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
@@ -20,7 +20,7 @@ class UpdateArticleServiceImpl(
     private val r2Uploader: R2Uploader,
     private val articleHistoryRecorder: ArticleHistoryRecorder,
     private val authenticationReader: AuthenticationReader,
-    private val articleCacheService: ArticleCacheService,
+    private val articleCacheStore: ArticleCacheStore,
 ) : UpdateArticleService {
     @Transactional
     override fun execute(
@@ -47,7 +47,7 @@ class UpdateArticleServiceImpl(
         articleHistoryRecorder.record(article, previousContent, reqDto.content, editor)
 
         val response = ArticleResDto.from(article)
-        articleCacheService.putAfterCommit(response)
+        articleCacheStore.putAfterCommit(response)
         return response
     }
 

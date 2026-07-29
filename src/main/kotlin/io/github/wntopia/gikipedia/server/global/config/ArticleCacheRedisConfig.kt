@@ -12,7 +12,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer
 /**
  * 조회 응답(ArticleResDto)을 Redis에 JSON으로 캐싱하기 위한 RedisTemplate.
  *
- * `spring.session.store-type: redis`(세션 저장)와는 완전히 별개 용도라, 키는 [ArticleCacheService]가
+ * `spring.session.store-type: redis`(세션 저장)와는 완전히 별개 용도라, 키는 [ArticleCacheStore]가
  * 별도 네임스페이스("article:cache:")를 붙여서 쓴다.
  */
 @Configuration

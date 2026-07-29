@@ -3,7 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
 import org.assertj.core.api.Assertions.assertThat
@@ -23,9 +23,9 @@ class CreateArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val r2Uploader = mock<R2Uploader>()
     private val eventPublisher = mock<ApplicationEventPublisher>()
-    private val articleCacheService = mock<ArticleCacheService>()
+    private val articleCacheStore = mock<ArticleCacheStore>()
 
-    private val service = CreateArticleServiceImpl(articleRepository, r2Uploader, eventPublisher, articleCacheService)
+    private val service = CreateArticleServiceImpl(articleRepository, r2Uploader, eventPublisher, articleCacheStore)
 
     @BeforeEach
     fun setUp() {
@@ -52,6 +52,6 @@ class CreateArticleServiceImplTest {
     fun cachesResponseAfterCommit() {
         val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용"))
 
-        verify(articleCacheService).putAfterCommit(response)
+        verify(articleCacheStore).putAfterCommit(response)
     }
 }
