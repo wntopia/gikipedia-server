@@ -24,33 +24,40 @@ class ArticleConsistencyCheckScheduler(
 
     @Scheduled(cron = "0 0 4 * * *")
     fun checkAndRepair() {
-        val allArticleIds = articleRepository.findAllIds()
-        val trueRevisions =
-            articleHistoryRepository
-                .findLatestRevisionPerArticle()
-                .associate { it.getArticleId() to it.getRevision() }
-        val mongoRevisions = articleMongoRepository.findAll().associate { it.documentId to it.revision }
+        // 배치 전체가 하나의 방어되지 않은 예외로 조용히 중단되지 않도록 감싼다 — 이 배치는
+        // "마지막 안전망"이라, 실패했을 때 아무 흔적 없이 그냥 안 도는 것보다는 실패 사실이 로그로
+        // 남는 게 중요하다.
+        try {
+            val allArticleIds = articleRepository.findAllIds()
+            val trueRevisions =
+                articleHistoryRepository
+                    .findLatestRevisionPerArticle()
+                    .associate { it.getArticleId() to it.getRevision() }
+            val mongoRevisions = articleMongoRepository.findAll().associate { it.documentId to it.revision }
 
-        var mismatchCount = 0
-        allArticleIds.forEach { articleId ->
-            // 한 번도 수정 안 된 문서는 article_histories에 행이 없다 — 그 경우 "생성 시점 그대로"인
-            // 리비전 1이 정답이다(CreateArticleServiceImpl이 발행하는 baseline과 동일한 값).
-            val trueRevision = trueRevisions[articleId] ?: BASELINE_REVISION
-            val mongoRevision = mongoRevisions[articleId]
+            var mismatchCount = 0
+            allArticleIds.forEach { articleId ->
+                // 한 번도 수정 안 된 문서는 article_histories에 행이 없다 — 그 경우 "생성 시점 그대로"인
+                // 리비전 1이 정답이다(CreateArticleServiceImpl이 발행하는 baseline과 동일한 값).
+                val trueRevision = trueRevisions[articleId] ?: BASELINE_REVISION
+                val mongoRevision = mongoRevisions[articleId]
 
-            if (mongoRevision == null || mongoRevision < trueRevision) {
-                mismatchCount++
-                log.warn(
-                    "MySQL-Mongo 리비전 불일치 발견, 자동 복구 (articleId={}, mysql={}, mongo={})",
-                    articleId,
-                    trueRevision,
-                    mongoRevision,
-                )
-                articleMongoSyncService.sync(articleId, trueRevision)
+                if (mongoRevision == null || mongoRevision < trueRevision) {
+                    mismatchCount++
+                    log.warn(
+                        "MySQL-Mongo 리비전 불일치 발견, 자동 복구 (articleId={}, mysql={}, mongo={})",
+                        articleId,
+                        trueRevision,
+                        mongoRevision,
+                    )
+                    articleMongoSyncService.sync(articleId, trueRevision)
+                }
             }
-        }
 
-        log.info("일일 정합성 검사 완료 (대상={}, 불일치={})", allArticleIds.size, mismatchCount)
+            log.info("일일 정합성 검사 완료 (대상={}, 불일치={})", allArticleIds.size, mismatchCount)
+        } catch (e: Exception) {
+            log.error("일일 정합성 검사 배치 실행 중 실패 — 이번 회차는 복구가 수행되지 않았다", e)
+        }
     }
 
     companion object {
