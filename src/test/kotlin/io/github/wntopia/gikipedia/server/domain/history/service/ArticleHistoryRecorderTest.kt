@@ -105,7 +105,7 @@ class ArticleHistoryRecorderTest {
 
         val eventCaptor = argumentCaptor<ArticleUpdatedEvent>()
         verify(eventPublisher).publishEvent(eventCaptor.capture())
+        assertThat(eventCaptor.firstValue.articleId).isEqualTo(1L)
         assertThat(eventCaptor.firstValue.revision).isEqualTo(5)
-        assertThat(eventCaptor.firstValue.content).isEqualTo("Y")
     }
 }

@@ -57,7 +57,7 @@ class ArticleHistoryRecorder(
             saveSnapshot(article, newRevision, after)
         }
 
-        eventPublisher.publishEvent(ArticleUpdatedEvent(articleId, newRevision, article.title, after))
+        eventPublisher.publishEvent(ArticleUpdatedEvent(articleId, newRevision))
         return newRevision
     }
 
