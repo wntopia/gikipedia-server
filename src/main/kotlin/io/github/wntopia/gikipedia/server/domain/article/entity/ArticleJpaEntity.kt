@@ -30,12 +30,11 @@ class ArticleJpaEntity(
     var imageUrl: String? = imageUrl
         protected set
 
+    /** title은 생성 시점에만 정해지고 이후 수정 불가능하다 — 여기서 받지 않는다. */
     fun update(
-        title: String,
         content: String,
         imageUrl: String?,
     ) {
-        this.title = title
         this.content = content
         this.imageUrl = imageUrl
     }

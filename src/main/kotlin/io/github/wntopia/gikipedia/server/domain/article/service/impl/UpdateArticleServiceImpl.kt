@@ -40,7 +40,7 @@ class UpdateArticleServiceImpl(
             reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, IMAGE_KEY_PREFIX) }
                 ?: article.imageUrl
 
-        article.update(reqDto.title, reqDto.content, imageUrl)
+        article.update(reqDto.content, imageUrl)
 
         // diff/스냅샷 기록과 최신 스냅샷 갱신은 하나의 트랜잭션으로 원자 커밋된다.
         // Mongo 동기화는 recorder가 발행하는 이벤트를 Modulith 리스너가 커밋 이후 처리한다.

@@ -63,7 +63,7 @@ class ArticleHistoryRecorderTest {
     }
 
     @Test
-    @DisplayName("content 변화가 없으면 리비전을 만들지 않지만, 제목/이미지 등 다른 필드가 바뀌었을 수 있으므로 현재 리비전으로 동기화 이벤트는 다시 발행한다")
+    @DisplayName("content 변화가 없으면 리비전을 만들지 않지만, 이미지 등 다른 필드가 바뀌었을 수 있으므로 현재 리비전으로 동기화 이벤트는 다시 발행한다")
     fun noContentChangeStillPublishesEventWithCurrentRevision() {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
             .thenReturn(ArticleHistoryJpaEntity(article, 4, "e", "diff"))
