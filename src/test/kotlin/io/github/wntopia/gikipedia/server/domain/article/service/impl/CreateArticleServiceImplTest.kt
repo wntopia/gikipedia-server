@@ -17,6 +17,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Instant
 
 /** 생성 시에도 Mongo 동기화 이벤트(baseline revision=1)를 발행하고 캐시를 채우는지 검증. */
 class CreateArticleServiceImplTest {
@@ -32,6 +33,10 @@ class CreateArticleServiceImplTest {
         whenever(articleRepository.save(any<ArticleJpaEntity>())).thenAnswer { invocation ->
             val entity = invocation.getArgument<ArticleJpaEntity>(0)
             ReflectionTestUtils.setField(entity, "id", 1L)
+            // 이벤트 발행 시 createdAt/updatedAt을 requireNotNull로 확인하므로, 실제 저장 시
+            // JPA 감사가 채우는 값을 mock 응답에서도 미리 채워둔다.
+            ReflectionTestUtils.setField(entity, "createdAt", Instant.now())
+            ReflectionTestUtils.setField(entity, "updatedAt", Instant.now())
             entity
         }
     }

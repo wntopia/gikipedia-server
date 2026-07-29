@@ -1,12 +1,9 @@
 package io.github.wntopia.gikipedia.server.domain.article.service
 
 import com.mongodb.client.result.UpdateResult
-import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
-import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import org.bson.BsonObjectId
 import org.bson.types.ObjectId
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
@@ -17,28 +14,33 @@ import org.mockito.kotlin.whenever
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Query
 import org.springframework.data.mongodb.core.query.Update
-import org.springframework.test.util.ReflectionTestUtils
-import java.util.Optional
+import java.time.Instant
 
 /**
  * upsert-then-guarded-update 방식 검증: 신규 삽입은 setOnInsert만으로 끝나고(추가 갱신 없음),
- * 기존 문서 갱신은 후속 updateFirst로 이어지며, MySQL에 없는 article은 Mongo를 아예 건드리지 않는다.
+ * 기존 문서 갱신은 후속 updateFirst로 이어진다. 반영할 데이터는 모두 호출자가 넘기므로 MySQL을
+ * 재조회하지 않는다.
  */
 class ArticleMongoSynchronizerTest {
-    private val articleRepository = mock<ArticleRepository>()
     private val mongoTemplate = mock<MongoTemplate>()
-    private val service = ArticleMongoSynchronizer(articleRepository, mongoTemplate)
+    private val service = ArticleMongoSynchronizer(mongoTemplate)
 
-    private val article = ArticleJpaEntity(title = "제목", content = "내용")
-
-    @BeforeEach
-    fun setUp() {
-        ReflectionTestUtils.setField(article, "id", 1L)
-        whenever(articleRepository.findById(1L)).thenReturn(Optional.of(article))
-    }
+    private val now = Instant.now()
 
     private fun updateResult(upserted: Boolean): UpdateResult =
         UpdateResult.acknowledged(1, 1L, if (upserted) BsonObjectId(ObjectId()) else null)
+
+    private fun sync(revision: Int) {
+        service.sync(
+            articleId = 1L,
+            revision = revision,
+            title = "제목",
+            content = "내용",
+            imageUrl = null,
+            articleCreatedAt = now,
+            articleUpdatedAt = now,
+        )
+    }
 
     @Test
     fun `신규 문서 삽입이면 setOnInsert만으로 끝나고 후속 갱신을 호출하지 않는다`() {
@@ -46,7 +48,7 @@ class ArticleMongoSynchronizerTest {
             mongoTemplate.upsert(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java)),
         ).thenReturn(updateResult(upserted = true))
 
-        service.sync(1L, 1)
+        sync(revision = 1)
 
         verify(mongoTemplate, never()).updateFirst(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
     }
@@ -57,18 +59,8 @@ class ArticleMongoSynchronizerTest {
             mongoTemplate.upsert(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java)),
         ).thenReturn(updateResult(upserted = false))
 
-        service.sync(1L, 5)
+        sync(revision = 5)
 
         verify(mongoTemplate).updateFirst(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
-    }
-
-    @Test
-    fun `MySQL에서 article을 못 찾으면 Mongo를 전혀 건드리지 않는다`() {
-        whenever(articleRepository.findById(1L)).thenReturn(Optional.empty())
-
-        service.sync(1L, 5)
-
-        verify(mongoTemplate, never()).upsert(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
-        verify(mongoTemplate, never()).updateFirst(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
     }
 }

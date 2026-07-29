@@ -19,6 +19,14 @@ class ArticleUpdatedEventListener(
 ) {
     @ApplicationModuleListener
     fun syncLatestView(event: ArticleUpdatedEvent) {
-        articleMongoSynchronizer.sync(event.articleId, event.revision)
+        articleMongoSynchronizer.sync(
+            articleId = event.articleId,
+            revision = event.revision,
+            title = event.title,
+            content = event.content,
+            imageUrl = event.imageUrl,
+            articleCreatedAt = event.createdAt,
+            articleUpdatedAt = event.updatedAt,
+        )
     }
 }

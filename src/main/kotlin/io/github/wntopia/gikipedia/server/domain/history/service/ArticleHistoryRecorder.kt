@@ -46,7 +46,7 @@ class ArticleHistoryRecorder(
         if (diff.isEmpty()) {
             val currentRevision =
                 articleHistoryRepository.findTopByArticleIdOrderByRevisionDesc(articleId)?.revision ?: BASELINE_REVISION
-            eventPublisher.publishEvent(ArticleUpdatedEvent(articleId, currentRevision))
+            eventPublisher.publishEvent(buildEvent(article, articleId, currentRevision))
             return null
         }
 
@@ -64,9 +64,29 @@ class ArticleHistoryRecorder(
             saveSnapshot(article, newRevision, after)
         }
 
-        eventPublisher.publishEvent(ArticleUpdatedEvent(articleId, newRevision))
+        eventPublisher.publishEvent(buildEvent(article, articleId, newRevision))
         return newRevision
     }
+
+    /**
+     * article의 createdAt/updatedAt은 JPA 감사(@CreatedDate/@LastModifiedDate) 필드라 타입상 nullable이지만,
+     * 이미 영속화된 엔티티라면 항상 채워져 있어야 한다. 비어 있으면(=감사 설정 누락 등) Mongo에 잘못된 값을
+     * 조용히 흘려보내는 대신 여기서 바로 실패시켜 원인을 드러낸다.
+     */
+    private fun buildEvent(
+        article: ArticleJpaEntity,
+        articleId: Long,
+        revision: Int,
+    ): ArticleUpdatedEvent =
+        ArticleUpdatedEvent(
+            articleId = articleId,
+            revision = revision,
+            title = article.title,
+            content = article.content,
+            imageUrl = article.imageUrl,
+            createdAt = requireNotNull(article.createdAt) { "article.createdAt이 null입니다 (articleId=$articleId)" },
+            updatedAt = requireNotNull(article.updatedAt) { "article.updatedAt이 null입니다 (articleId=$articleId)" },
+        )
 
     /** 리비전 1과 이후 snapshotInterval 간격마다 스냅샷을 남긴다(예: interval=10 → 1, 11, 21...). */
     private fun isSnapshotRevision(revision: Int): Boolean = revision % snapshotInterval == 1

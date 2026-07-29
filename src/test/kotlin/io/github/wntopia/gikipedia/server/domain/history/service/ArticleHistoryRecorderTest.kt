@@ -19,6 +19,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.test.util.ReflectionTestUtils
+import java.time.Instant
 
 /** 히스토리 기록 로직 검증: 최초 수정 baseline 확정, 스냅샷 주기, 변화 없음 처리, 이벤트 발행. */
 class ArticleHistoryRecorderTest {
@@ -36,6 +37,10 @@ class ArticleHistoryRecorderTest {
     @BeforeEach
     fun setUp() {
         ReflectionTestUtils.setField(article, "id", 1L)
+        // 이벤트 발행 시 buildEvent()가 createdAt/updatedAt을 requireNotNull로 확인하므로,
+        // 실제 영속화 후 JPA 감사가 채우는 값을 테스트에서도 미리 채워둔다.
+        ReflectionTestUtils.setField(article, "createdAt", Instant.now())
+        ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
     }
 
     @Test

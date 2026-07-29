@@ -50,13 +50,49 @@ class ArticleConsistencyCheckScheduler(
                         trueRevision,
                         mongoRevision,
                     )
-                    articleMongoSynchronizer.sync(articleId, trueRevision)
+                    repair(articleId, trueRevision)
                 }
             }
 
             log.info("일일 정합성 검사 완료 (대상={}, 불일치={})", allArticleIds.size, mismatchCount)
         } catch (e: Exception) {
             log.error("일일 정합성 검사 배치 실행 중 실패 — 이번 회차는 복구가 수행되지 않았다", e)
+        }
+    }
+
+    /**
+     * article 1건 복구. ArticleMongoSynchronizer가 더 이상 MySQL을 재조회하지 않으므로, 복구에 필요한
+     * 데이터를 여기서 직접 조회해 채운다. 개별 article 복구가 실패해도(예외/null 데이터) 로그만 남기고
+     * 다음 article 복구를 계속 진행한다 — 한 문서의 문제로 그날 밤 전체 복구가 멈추지 않도록 하기 위함이다.
+     */
+    private fun repair(
+        articleId: Long,
+        trueRevision: Int,
+    ) {
+        try {
+            val article = articleRepository.findById(articleId).orElse(null)
+            if (article == null) {
+                log.warn("복구 대상 article을 MySQL에서 찾을 수 없음, 건너뜀 (articleId={})", articleId)
+                return
+            }
+            val createdAt = article.createdAt
+            val updatedAt = article.updatedAt
+            if (createdAt == null || updatedAt == null) {
+                log.warn("복구 대상 article의 createdAt/updatedAt이 비어 있음, 건너뜀 (articleId={})", articleId)
+                return
+            }
+
+            articleMongoSynchronizer.sync(
+                articleId = articleId,
+                revision = trueRevision,
+                title = article.title,
+                content = article.content,
+                imageUrl = article.imageUrl,
+                articleCreatedAt = createdAt,
+                articleUpdatedAt = updatedAt,
+            )
+        } catch (e: Exception) {
+            log.error("article {} 복구 중 실패, 다음 article은 계속 진행", articleId, e)
         }
     }
 
