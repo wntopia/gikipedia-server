@@ -125,6 +125,12 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
       mvn"org.mockito.kotlin:mockito-kotlin:5.4.0"
     )
 
-    def runMvnDeps: T[Seq[Dep]] = Seq(mvn"org.junit.platform:junit-platform-launcher")
+    def runMvnDeps: T[Seq[Dep]] = Seq(
+      mvn"org.junit.platform:junit-platform-launcher",
+      // @DataJpaTest용 인메모리 DB. 운영은 MySQL을 쓰지만, 이 프로젝트엔 아직 통합 테스트용 DB가 없어서
+      // Docker(Testcontainers) 없이 가볍게 돌아가는 H2를 골랐다 — MySQL과 락 세부 동작이 100% 같진 않지만
+      // JPA/Hibernate 레벨의 행 잠금 직렬화 로직 자체는 검증할 수 있다.
+      mvn"com.h2database:h2"
+    )
   }
 }
