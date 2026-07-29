@@ -58,13 +58,33 @@ class ArticleHistoryRecorderTest {
     }
 
     @Test
-    @DisplayName("변화가 없으면 리비전을 만들지 않고 이벤트도 발행하지 않는다")
-    fun noChangeSkips() {
+    @DisplayName("content 변화가 없으면 리비전을 만들지 않지만, 제목/이미지 등 다른 필드가 바뀌었을 수 있으므로 현재 리비전으로 동기화 이벤트는 다시 발행한다")
+    fun noContentChangeStillPublishesEventWithCurrentRevision() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
+            .thenReturn(ArticleHistoryJpaEntity(article, 4, "e", "diff"))
+
         val newRevision = recorder.record(article, before = "같음", after = "같음", editor = "e")
 
         assertThat(newRevision).isNull()
         verify(historyRepository, never()).save(any())
-        verify(eventPublisher, never()).publishEvent(any<ArticleUpdatedEvent>())
+
+        val eventCaptor = argumentCaptor<ArticleUpdatedEvent>()
+        verify(eventPublisher).publishEvent(eventCaptor.capture())
+        assertThat(eventCaptor.firstValue.articleId).isEqualTo(1L)
+        assertThat(eventCaptor.firstValue.revision).isEqualTo(4)
+    }
+
+    @Test
+    @DisplayName("한 번도 수정 안 된 문서에서 content 변화가 없으면 baseline 리비전(1)으로 동기화 이벤트를 발행한다")
+    fun noContentChangeOnNeverEditedArticlePublishesBaselineRevision() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        val newRevision = recorder.record(article, before = "같음", after = "같음", editor = "e")
+
+        assertThat(newRevision).isNull()
+        val eventCaptor = argumentCaptor<ArticleUpdatedEvent>()
+        verify(eventPublisher).publishEvent(eventCaptor.capture())
+        assertThat(eventCaptor.firstValue.revision).isEqualTo(1)
     }
 
     @Test

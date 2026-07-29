@@ -29,9 +29,11 @@ class ArticleHistoryRecorder(
      * 문서의 이전 내용(before)에서 새 내용(after)으로의 변경을 새 리비전으로 기록한다.
      *
      * 첫 수정이라 히스토리가 비어 있으면 생성 시점 내용(before)을 리비전 1(스냅샷)로 먼저 확정한 뒤, 새 내용을 리비전 2로 쌓는다. 이렇게 해야 어떤 리비전이든 "가장 가까운 스냅샷 + 이후 diff"로
-     * 재구성할 수 있다. 내용 변화가 없으면(diff 없음) 리비전을 만들지 않는다.
+     * 재구성할 수 있다. content 변화가 없으면(diff 없음) 새 리비전은 만들지 않되, 제목/이미지 등 다른 필드만 바뀌었을
+     * 수 있으므로 현재 리비전 그대로 Mongo 동기화 이벤트는 다시 발행한다 — 그래야 Mongo/Redis에 반영된 제목/이미지가
+     * 뒤처지지 않는다.
      *
-     * @return 새로 기록된 리비전 번호. 변화가 없으면 null.
+     * @return 새로 기록된 리비전 번호. content 변화가 없으면 null.
      */
     fun record(
         article: ArticleJpaEntity,
@@ -39,10 +41,15 @@ class ArticleHistoryRecorder(
         after: String,
         editor: String,
     ): Int? {
-        val diff = articleDiff.generate(before, after)
-        if (diff.isEmpty()) return null
-
         val articleId = requireNotNull(article.id)
+        val diff = articleDiff.generate(before, after)
+        if (diff.isEmpty()) {
+            val currentRevision =
+                articleHistoryRepository.findTopByArticleIdOrderByRevisionDesc(articleId)?.revision ?: BASELINE_REVISION
+            eventPublisher.publishEvent(ArticleUpdatedEvent(articleId, currentRevision))
+            return null
+        }
+
         val lastRevision = articleHistoryRepository.findTopByArticleIdOrderByRevisionDesc(articleId)?.revision
 
         if (lastRevision == null) {
