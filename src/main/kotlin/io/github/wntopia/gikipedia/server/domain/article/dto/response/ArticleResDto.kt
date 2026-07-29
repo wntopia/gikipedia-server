@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.article.dto.response
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
+import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
 import java.time.Instant
 
 data class ArticleResDto(
@@ -20,6 +21,16 @@ data class ArticleResDto(
                 imageUrl = entity.imageUrl,
                 createdAt = entity.createdAt,
                 updatedAt = entity.updatedAt,
+            )
+
+        fun from(entity: ArticleMongoEntity): ArticleResDto =
+            ArticleResDto(
+                id = entity.documentId,
+                title = entity.title,
+                content = entity.content,
+                imageUrl = entity.imageUrl,
+                createdAt = entity.articleCreatedAt,
+                updatedAt = entity.articleUpdatedAt,
             )
     }
 }

@@ -3,6 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
@@ -19,6 +20,7 @@ class UpdateArticleServiceImpl(
     private val r2Uploader: R2Uploader,
     private val articleHistoryRecorder: ArticleHistoryRecorder,
     private val authenticationReader: AuthenticationReader,
+    private val articleCacheService: ArticleCacheService,
 ) : UpdateArticleService {
     @Transactional
     override fun execute(
@@ -41,10 +43,12 @@ class UpdateArticleServiceImpl(
         article.update(reqDto.title, reqDto.content, imageUrl)
 
         // diff/스냅샷 기록과 최신 스냅샷 갱신은 하나의 트랜잭션으로 원자 커밋된다.
-        // Mongo 동기화는 recorder가 발행하는 이벤트를 AFTER_COMMIT 리스너가 처리한다.
+        // Mongo 동기화는 recorder가 발행하는 이벤트를 Modulith 리스너가 커밋 이후 처리한다.
         articleHistoryRecorder.record(article, previousContent, reqDto.content, editor)
 
-        return ArticleResDto.from(article)
+        val response = ArticleResDto.from(article)
+        articleCacheService.putAfterCommit(response)
+        return response
     }
 
     companion object {
