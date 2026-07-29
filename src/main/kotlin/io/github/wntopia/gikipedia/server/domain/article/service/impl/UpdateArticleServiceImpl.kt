@@ -28,17 +28,19 @@ class UpdateArticleServiceImpl(
         reqDto: UpdateArticleReqDto,
         session: HttpSession,
     ): ArticleResDto {
+        // R2 업로드(블로킹 네트워크 호출)는 아래 행 잠금을 잡기 전에 끝내둔다 — 그래야 느린 업로드가
+        // 같은 article을 동시에 수정하려는 다른 요청까지 잠가버리는 일이 없다.
+        val uploadedImageUrl = reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, IMAGE_KEY_PREFIX) }
+
+        // 같은 article에 대한 동시 수정 요청을 여기서 직렬화한다 — 두 트랜잭션이 article_histories의
+        // "다음 리비전 번호"를 동시에 같은 값으로 계산해 유니크 제약 위반으로 한쪽이 실패하는 경합을 막는다.
         val article =
-            articleRepository
-                .findById(articleId)
-                .orElseThrow { ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND) }
+            articleRepository.findByIdForUpdate(articleId)
+                ?: throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
 
         val editor = authenticationReader.getEditorLabel(session)
         val previousContent = article.content
-
-        val imageUrl =
-            reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, IMAGE_KEY_PREFIX) }
-                ?: article.imageUrl
+        val imageUrl = uploadedImageUrl ?: article.imageUrl
 
         article.update(reqDto.content, imageUrl)
 
