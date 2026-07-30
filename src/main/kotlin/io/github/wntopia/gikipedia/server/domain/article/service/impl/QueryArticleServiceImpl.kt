@@ -9,7 +9,6 @@ import io.github.wntopia.gikipedia.server.global.config.ArticleReadEnvironment
 import io.github.wntopia.gikipedia.server.global.config.ArticleReadSource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -19,13 +18,16 @@ class QueryArticleServiceImpl(
     private val articleCacheStore: ArticleCacheStore,
     private val readEnvironment: ArticleReadEnvironment,
 ) : QueryArticleService {
-    @Transactional(readOnly = true)
     override fun execute(articleId: Long): ArticleResDto =
         when (readEnvironment.source) {
             ArticleReadSource.MYSQL -> queryFromMysql(articleId)
             ArticleReadSource.REDIS_MONGO -> queryFromCacheOrMongo(articleId)
         }
 
+    // REDIS_MONGO 경로는 MySQL을 전혀 안 건드리므로 여기 클래스/메서드 레벨로 @Transactional을 걸어두면
+    // 그 경우에도 매번 불필요하게 MySQL 커넥션을 열게 된다. articleRepository.findById()는 Spring Data
+    // JPA의 SimpleJpaRepository가 이미 자체 @Transactional(readOnly = true)을 갖고 있어서, 이 메서드
+    // 하나만 실행될 때 그 호출에 한해서만 짧게 트랜잭션이 열리고 닫힌다.
     private fun queryFromMysql(articleId: Long): ArticleResDto =
         articleRepository
             .findById(articleId)
