@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.article.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.Query
@@ -35,19 +36,27 @@ class ArticleMongoSynchronizer(
         articleUpdatedAt: Instant,
     ) {
         val byDocumentId = Query(Criteria.where("document_id").`is`(articleId))
+        val upsert =
+            Update()
+                .max("revision", revision)
+                .setOnInsert("document_id", articleId)
+                .setOnInsert("title", title)
+                .setOnInsert("content", content)
+                .setOnInsert("image_url", imageUrl)
+                .setOnInsert("article_created_at", articleCreatedAt)
+                .setOnInsert("article_updated_at", articleUpdatedAt)
+
         val result =
-            mongoTemplate.upsert(
-                byDocumentId,
-                Update()
-                    .max("revision", revision)
-                    .setOnInsert("document_id", articleId)
-                    .setOnInsert("title", title)
-                    .setOnInsert("content", content)
-                    .setOnInsert("image_url", imageUrl)
-                    .setOnInsert("article_created_at", articleCreatedAt)
-                    .setOnInsert("article_updated_at", articleUpdatedAt),
-                ArticleMongoEntity::class.java,
-            )
+            try {
+                mongoTemplate.upsert(byDocumentId, upsert, ArticleMongoEntity::class.java)
+            } catch (e: DuplicateKeyException) {
+                // 같은 articleId의 baseline(생성)과 첫 수정 이벤트가 서로 다른 비동기 리스너 스레드에서
+                // 거의 동시에 처리되면, 둘 다 문서가 아직 없다고 보고 동시에 "삽입"을 시도하다 document_id
+                // unique 인덱스 위반으로 한쪽이 이 예외를 받을 수 있다(MongoDB의 잘 알려진 upsert race).
+                // 이 시점엔 이미 상대방이 문서를 만들어뒀으므로, 같은 연산을 한 번 더 실행하면 이번엔
+                // upsert가 아니라 기존 문서에 대한 정상적인 $max 갱신 경로를 탄다.
+                mongoTemplate.upsert(byDocumentId, upsert, ArticleMongoEntity::class.java)
+            }
 
         if (result.upsertedId != null) {
             // 신규 삽입: setOnInsert로 이미 완전한 문서가 만들어졌으므로 더 할 일이 없다.

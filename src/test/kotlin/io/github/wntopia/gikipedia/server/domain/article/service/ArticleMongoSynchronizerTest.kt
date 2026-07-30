@@ -9,8 +9,10 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Query
 import org.springframework.data.mongodb.core.query.Update
@@ -61,6 +63,19 @@ class ArticleMongoSynchronizerTest {
 
         sync(revision = 5)
 
+        verify(mongoTemplate).updateFirst(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
+    }
+
+    @Test
+    fun `동시 upsert 경합으로 DuplicateKeyException이 나면 한 번 재시도해 갱신 경로를 탄다`() {
+        whenever(
+            mongoTemplate.upsert(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java)),
+        ).thenThrow(DuplicateKeyException("E11000 duplicate key"))
+            .thenReturn(updateResult(upserted = false))
+
+        sync(revision = 1)
+
+        verify(mongoTemplate, times(2)).upsert(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
         verify(mongoTemplate).updateFirst(any<Query>(), any<Update>(), eq(ArticleMongoEntity::class.java))
     }
 }
