@@ -37,6 +37,18 @@ spring:
       access-key: ${R2_ACCESS_KEY_ID:}
       secret-key: ${R2_SECRET_ACCESS_KEY:}
       public-url: ${R2_PUBLIC_URL:}
+  data:
+    mongodb:
+      # ArticleMongoEntity.documentId의 @Indexed(unique = true)를 실제 인덱스로 만들려면 필요하다
+      # (Spring Data MongoDB는 기본적으로 자동 인덱스 생성을 꺼둔다).
+      auto-index-creation: true
+  modulith:
+    events:
+      # 이벤트 처리(리스너)가 실패하거나 앱이 죽어도, 재시작 시 미완료 발행 기록을 자동으로 재발행한다.
+      republish-outstanding-events-on-restart: true
+      # 완료된 발행 기록은 즉시 삭제한다 — article_histories가 이미 이력/감사 용도이므로, 이 테이블은
+      # 순수 "미완료 작업 대기열" 용도로만 쓰고 무한정 쌓이지 않게 한다.
+      completion-mode: delete
 
 app:
   cache:
@@ -47,6 +59,12 @@ app:
 article:
   snapshot:
     interval: ${ARTICLE_SNAPSHOT_INTERVAL:10}
+  read:
+    # redis-mongo: Redis→Mongo 순으로 조회(신규 경로). mysql: 기존처럼 MySQL 직접 조회.
+    # 문제 생길 때 재배포만으로 되돌릴 수 있도록 플래그로 둔다.
+    source: ${ARTICLE_READ_SOURCE:redis-mongo}
+  cache:
+    ttl-minutes: ${ARTICLE_CACHE_TTL_MINUTES:60}
 
 sdk:
   logging:
