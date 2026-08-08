@@ -5,7 +5,6 @@ import io.github.wntopia.gikipedia.server.domain.history.dto.response.ArticleRev
 import io.github.wntopia.gikipedia.server.domain.history.dto.response.ArticleRevisionSummaryResDto
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
-import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistorySegmentCodec
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
@@ -22,7 +21,6 @@ class ReconstructArticleServiceImpl(
     private val articleRepository: ArticleRepository,
     private val articleHistoryRepository: ArticleHistoryRepository,
     private val articleSnapshotRepository: ArticleSnapshotRepository,
-    private val articleHistorySegmentRepository: ArticleHistorySegmentRepository,
     private val articleHistorySegmentCodec: ArticleHistorySegmentCodec,
     private val articleDiff: ArticleDiff,
 ) : ReconstructArticleService {
@@ -73,9 +71,9 @@ class ReconstructArticleServiceImpl(
     /**
      * 스냅샷 이후 diff를 순차 적용해 content를 복원하고, 대상 리비전의 editor/createdAt을 함께 찾는다.
      *
-     * interior 구간은 [ArticleHistoryCompactionService]에 의해 원자적으로(세그먼트 저장 + 원본 삭제가
-     * 하나의 트랜잭션) 압축되므로, 요청 범위의 raw row는 "전부 존재" 또는 "전부 압축되어 없음" 두 상태만
-     * 가능하다 — 일부만 압축된 중간 상태는 발생하지 않는다.
+     * interior 구간은 [ArticleHistoryCompactionService]에 의해 원자적으로(스냅샷에 페이로드 부착 + 원본
+     * 삭제가 하나의 트랜잭션) 압축되므로, 요청 범위의 raw row는 "전부 존재" 또는 "전부 압축되어 없음" 두
+     * 상태만 가능하다 — 일부만 압축된 중간 상태는 발생하지 않는다.
      */
     private fun resolveRevision(
         articleId: Long,
@@ -104,11 +102,11 @@ class ReconstructArticleServiceImpl(
             return ResolvedRevision(content, target.editor, target.createdAt)
         }
 
-        // raw row가 부족함 = 해당 interior 구간이 이미 압축됨. 세그먼트에서 복원한다.
-        val segment =
-            articleHistorySegmentRepository.findByArticleIdAndFromRevision(articleId, snapshot.revision)
+        // raw row가 부족함 = 해당 interior 구간이 이미 압축됨. snapshot 자신에 붙은 페이로드에서 복원한다.
+        val payload =
+            snapshot.compressedInteriorPayload
                 ?: throw ExpectedException("존재하지 않는 리비전입니다.", HttpStatus.NOT_FOUND)
-        val entries = articleHistorySegmentCodec.decode(segment.compressedPayload)
+        val entries = articleHistorySegmentCodec.decode(payload)
         val target =
             entries.find { it.revision == revision }
                 ?: throw ExpectedException("존재하지 않는 리비전입니다.", HttpStatus.NOT_FOUND)
@@ -130,17 +128,17 @@ class ReconstructArticleServiceImpl(
                 .findByArticleIdOrderByRevisionDesc(articleId)
                 .map(ArticleRevisionSummaryResDto::from)
 
-        // TODO(성능 최적화, 후속 과제): 지금은 정확성 우선으로 세그먼트를 매번 풀어서 병합한다. 문서당
-        // 세그먼트 개수가 늘어나면 메타데이터(revision/editor/createdAt)만 압축하지 않는 별도 저장 방식으로
-        // 전환하는 것을 고려한다.
-        val segmentSummaries =
-            articleHistorySegmentRepository.findByArticleId(articleId).flatMap { segment ->
-                articleHistorySegmentCodec.decode(segment.compressedPayload).map {
-                    ArticleRevisionSummaryResDto(revision = it.revision, editor = it.editor, editedAt = it.createdAt)
+        // TODO(성능 최적화, 후속 과제): 지금은 정확성 우선으로 압축된 스냅샷마다 페이로드를 풀어서 병합한다.
+        // 문서당 압축 구간 개수가 늘어나면 메타데이터(revision/editor/createdAt)만 압축하지 않는 별도 저장
+        // 방식으로 전환하는 것을 고려한다.
+        val compactedSummaries =
+            articleSnapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId).flatMap {
+                articleHistorySegmentCodec.decode(requireNotNull(it.compressedInteriorPayload)).map { entry ->
+                    ArticleRevisionSummaryResDto(revision = entry.revision, editor = entry.editor, editedAt = entry.createdAt)
                 }
             }
 
-        return (rawSummaries + segmentSummaries).sortedByDescending { it.revision }
+        return (rawSummaries + compactedSummaries).sortedByDescending { it.revision }
     }
 
     private data class ResolvedRevision(

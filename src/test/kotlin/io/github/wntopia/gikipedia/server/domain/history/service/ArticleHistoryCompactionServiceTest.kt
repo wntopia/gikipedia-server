@@ -1,12 +1,11 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
-import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.dto.ArticleHistorySegmentEntry
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
-import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistorySegmentJpaEntity
+import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
-import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -20,15 +19,13 @@ import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.Instant
 
-/** 스냅샷 구간(fromRevision, toRevision)의 interior 리비전을 압축 세그먼트로 묶는 로직 검증. */
+/** 스냅샷 구간(fromRevision, toRevision)의 interior 리비전을 압축해 fromRevision 스냅샷에 붙이는 로직 검증. */
 class ArticleHistoryCompactionServiceTest {
-    private val articleRepository = mock<ArticleRepository>()
     private val articleHistoryRepository = mock<ArticleHistoryRepository>()
-    private val articleHistorySegmentRepository = mock<ArticleHistorySegmentRepository>()
+    private val articleSnapshotRepository = mock<ArticleSnapshotRepository>()
     private val codec = mock<ArticleHistorySegmentCodec>()
 
-    private val service =
-        ArticleHistoryCompactionService(articleRepository, articleHistoryRepository, articleHistorySegmentRepository, codec)
+    private val service = ArticleHistoryCompactionService(articleHistoryRepository, articleSnapshotRepository, codec)
 
     private val articleId = 1L
     private val article = ArticleJpaEntity(title = "제목", content = "무관")
@@ -36,7 +33,6 @@ class ArticleHistoryCompactionServiceTest {
     @BeforeEach
     fun setUp() {
         ReflectionTestUtils.setField(article, "id", articleId)
-        whenever(articleRepository.getReferenceById(articleId)).thenReturn(article)
     }
 
     private fun history(
@@ -48,11 +44,14 @@ class ArticleHistoryCompactionServiceTest {
         ReflectionTestUtils.setField(it, "createdAt", Instant.now())
     }
 
+    private fun snapshot(revision: Int) = ArticleSnapshotJpaEntity(article, revision, "content-$revision")
+
     @Test
-    @DisplayName("interior 리비전들을 압축 세그먼트로 저장하고 원본 row를 삭제한다")
+    @DisplayName("interior 리비전들을 압축해 fromRevision 스냅샷에 붙이고 원본 row를 삭제한다")
     fun compactsInteriorRevisions() {
+        val fromSnapshot = snapshot(1)
+        whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(fromSnapshot)
         val interior = listOf(history(2), history(3))
-        whenever(articleHistorySegmentRepository.existsByArticleIdAndFromRevision(articleId, 1)).thenReturn(false)
         whenever(articleHistoryRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 3))
             .thenReturn(interior)
         val encoded = byteArrayOf(1, 2, 3)
@@ -61,11 +60,8 @@ class ArticleHistoryCompactionServiceTest {
 
         service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
-        val segmentCaptor = argumentCaptor<ArticleHistorySegmentJpaEntity>()
-        verify(articleHistorySegmentRepository).save(segmentCaptor.capture())
-        assertThat(segmentCaptor.firstValue.fromRevision).isEqualTo(1)
-        assertThat(segmentCaptor.firstValue.toRevision).isEqualTo(4)
-        assertThat(segmentCaptor.firstValue.compressedPayload).isEqualTo(encoded)
+        assertThat(fromSnapshot.compressedInteriorPayload).isEqualTo(encoded)
+        verify(articleSnapshotRepository).save(fromSnapshot)
 
         val entriesCaptor = argumentCaptor<List<ArticleHistorySegmentEntry>>()
         verify(codec).encode(entriesCaptor.capture())
@@ -79,31 +75,44 @@ class ArticleHistoryCompactionServiceTest {
     fun skipsWhenNoInterior() {
         service.compactSegment(articleId, fromRevision = 1, toRevision = 2)
 
-        verify(articleHistorySegmentRepository, never()).save(any())
+        verify(articleSnapshotRepository, never()).save(any())
+        verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
+    }
+
+    @Test
+    @DisplayName("압축 대상 스냅샷 row를 찾을 수 없으면 스킵한다")
+    fun skipsWhenSnapshotMissing() {
+        whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(null)
+
+        service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
+
+        verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
     }
 
     @Test
     @DisplayName("이미 압축된 구간이면 스킵한다")
     fun skipsWhenAlreadyCompacted() {
-        whenever(articleHistorySegmentRepository.existsByArticleIdAndFromRevision(articleId, 1)).thenReturn(true)
+        val fromSnapshot = snapshot(1)
+        fromSnapshot.attachCompressedInteriorPayload(byteArrayOf(9))
+        whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(fromSnapshot)
 
         service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
-        verify(articleHistorySegmentRepository, never()).save(any())
+        verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
     }
 
     @Test
     @DisplayName("interior row 개수가 기대치와 다르면 방어적으로 압축을 스킵한다")
     fun skipsOnCountMismatch() {
-        whenever(articleHistorySegmentRepository.existsByArticleIdAndFromRevision(articleId, 1)).thenReturn(false)
+        whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(snapshot(1))
         whenever(articleHistoryRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 3))
             .thenReturn(listOf(history(2))) // 기대치는 2건(2,3)인데 1건만 있음
 
         service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
-        verify(articleHistorySegmentRepository, never()).save(any())
+        verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
     }
 }

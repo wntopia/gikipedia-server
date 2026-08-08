@@ -4,14 +4,13 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.dto.ArticleHistorySegmentEntry
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
-import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistorySegmentJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
-import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.impl.ReconstructArticleServiceImpl
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -33,7 +32,6 @@ class ReconstructArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val historyRepository = mock<ArticleHistoryRepository>()
     private val snapshotRepository = mock<ArticleSnapshotRepository>()
-    private val segmentRepository = mock<ArticleHistorySegmentRepository>()
     private val segmentCodec = mock<ArticleHistorySegmentCodec>()
 
     private lateinit var service: ReconstructArticleServiceImpl
@@ -51,6 +49,11 @@ class ReconstructArticleServiceImplTest {
             "A\nB2\nX\nD\nE", // rev5
         )
 
+    // 같은 인스턴스를 여러 stub에서 재사용해야, 압축 테스트에서 attachCompressedInteriorPayload로
+    // 붙인 페이로드가 이후 조회에서도 그대로 보인다(매번 새로 만들면 mutation이 반영되지 않는다).
+    private val snapshot1 = ArticleSnapshotJpaEntity(article, 1, revisionContents[0])
+    private val snapshot4 = ArticleSnapshotJpaEntity(article, 4, revisionContents[3])
+
     @BeforeEach
     fun setUp() {
         ReflectionTestUtils.setField(article, "id", articleId)
@@ -59,7 +62,6 @@ class ReconstructArticleServiceImplTest {
                 articleRepository,
                 historyRepository,
                 snapshotRepository,
-                segmentRepository,
                 segmentCodec,
                 articleDiff,
             )
@@ -89,18 +91,17 @@ class ReconstructArticleServiceImplTest {
                 histories.find { it.revision == rev }
             }
 
-        // 스냅샷: rev1, rev4
+        // 스냅샷: rev1, rev4 — 같은 인스턴스를 반환해야 압축 페이로드 mutation이 이후 조회에도 보인다.
         whenever(snapshotRepository.findTopByArticleIdAndRevisionLessThanEqualOrderByRevisionDesc(any(), any()))
             .thenAnswer { inv ->
                 val rev = inv.arguments[1] as Int
-                listOf(4 to revisionContents[3], 1 to revisionContents[0])
-                    .firstOrNull { it.first <= rev }
-                    ?.let { snapshot(it.first, it.second) }
+                listOf(snapshot4, snapshot1).firstOrNull { it.revision <= rev }
             }
 
-        // 기본값: 압축된 세그먼트 없음(listRevisions 테스트에서 필요한 존재 확인 stub 포함).
+        // 기본값: 압축된 스냅샷 없음(listRevisions 테스트에서 필요한 존재 확인 stub 포함).
         whenever(articleRepository.existsById(articleId)).thenReturn(true)
-        whenever(segmentRepository.findByArticleId(articleId)).thenReturn(emptyList())
+        whenever(snapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId))
+            .thenReturn(emptyList())
     }
 
     @Test
@@ -132,13 +133,13 @@ class ReconstructArticleServiceImplTest {
     @Test
     @DisplayName("존재하지 않는 리비전(범위 밖)은 항상 404를 던진다")
     fun nonExistentRevisionThrowsNotFound() {
-        assertThatThrows { service.reconstruct(articleId, 0) }
-        assertThatThrows { service.reconstruct(articleId, 6) }
+        assertThatThrownBy { service.reconstruct(articleId, 0) }.isInstanceOf(ExpectedException::class.java)
+        assertThatThrownBy { service.reconstruct(articleId, 6) }.isInstanceOf(ExpectedException::class.java)
     }
 
     @Test
-    @DisplayName("압축된 interior 구간(리비전 2,3)도 세그먼트에서 복원되어 압축 전과 동일한 content를 반환한다")
-    fun reconstructsFromCompactedSegment() {
+    @DisplayName("압축된 interior 구간(리비전 2,3)도 스냅샷에 붙은 페이로드에서 복원되어 압축 전과 동일한 content를 반환한다")
+    fun reconstructsFromCompactedPayload() {
         // 리비전 2,3의 raw row가 삭제된 것처럼 시뮬레이션(압축 후 상태).
         whenever(historyRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 2))
             .thenReturn(emptyList())
@@ -150,9 +151,9 @@ class ReconstructArticleServiceImplTest {
                 ArticleHistorySegmentEntry(2, "2412 홍길동", articleDiff.generate(revisionContents[0], revisionContents[1]), Instant.EPOCH),
                 ArticleHistorySegmentEntry(3, "2412 홍길동", articleDiff.generate(revisionContents[1], revisionContents[2]), Instant.EPOCH),
             )
-        val segment = ArticleHistorySegmentJpaEntity(article, fromRevision = 1, toRevision = 4, compressedPayload = ByteArray(0))
-        whenever(segmentRepository.findByArticleIdAndFromRevision(articleId, 1)).thenReturn(segment)
-        whenever(segmentCodec.decode(segment.compressedPayload)).thenReturn(entries)
+        val payload = byteArrayOf(1, 2, 3)
+        snapshot1.attachCompressedInteriorPayload(payload)
+        whenever(segmentCodec.decode(payload)).thenReturn(entries)
 
         assertThat(service.reconstruct(articleId, 2).content).isEqualTo(revisionContents[1])
         assertThat(service.reconstruct(articleId, 3).content).isEqualTo(revisionContents[2])
@@ -162,11 +163,11 @@ class ReconstructArticleServiceImplTest {
     }
 
     @Test
-    @DisplayName("listRevisions는 raw row와 압축 세그먼트를 병합해 압축 전과 동일한 목록을 반환한다")
-    fun listRevisionsMergesCompactedSegment() {
+    @DisplayName("listRevisions는 raw row와 압축된 스냅샷 페이로드를 병합해 압축 전과 동일한 목록을 반환한다")
+    fun listRevisionsMergesCompactedPayload() {
         val beforeCompaction = service.listRevisions(articleId)
 
-        // 리비전 2,3을 세그먼트로 대체(압축 후 상태) — raw 목록에서도 함께 제거된 것처럼 시뮬레이션.
+        // 리비전 2,3을 압축 페이로드로 대체(압축 후 상태) — raw 목록에서도 함께 제거된 것처럼 시뮬레이션.
         whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId))
             .thenReturn(beforeCompaction.filter { it.revision !in setOf(2, 3) }.map { history(it.revision, "diff") })
         val entries =
@@ -174,26 +175,19 @@ class ReconstructArticleServiceImplTest {
                 ArticleHistorySegmentEntry(2, "2412 홍길동", "diff-2", Instant.EPOCH),
                 ArticleHistorySegmentEntry(3, "2412 홍길동", "diff-3", Instant.EPOCH),
             )
-        val segment = ArticleHistorySegmentJpaEntity(article, fromRevision = 1, toRevision = 4, compressedPayload = ByteArray(0))
-        whenever(segmentRepository.findByArticleId(articleId)).thenReturn(listOf(segment))
-        whenever(segmentCodec.decode(segment.compressedPayload)).thenReturn(entries)
+        val payload = byteArrayOf(1, 2, 3)
+        snapshot1.attachCompressedInteriorPayload(payload)
+        whenever(snapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId))
+            .thenReturn(listOf(snapshot1))
+        whenever(segmentCodec.decode(payload)).thenReturn(entries)
 
         val afterCompaction = service.listRevisions(articleId)
 
         assertThat(afterCompaction.map { it.revision }).isEqualTo(beforeCompaction.map { it.revision })
     }
 
-    private fun assertThatThrows(block: () -> Unit) {
-        org.assertj.core.api.Assertions.assertThatThrownBy(block).isInstanceOf(ExpectedException::class.java)
-    }
-
     private fun history(
         revision: Int,
         diff: String,
     ): ArticleHistoryJpaEntity = ArticleHistoryJpaEntity(article, revision, "2412 홍길동", diff)
-
-    private fun snapshot(
-        revision: Int,
-        content: String,
-    ): ArticleSnapshotJpaEntity = ArticleSnapshotJpaEntity(article, revision, content)
 }

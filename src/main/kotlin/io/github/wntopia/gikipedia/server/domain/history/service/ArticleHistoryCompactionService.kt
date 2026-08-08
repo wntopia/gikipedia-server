@@ -1,33 +1,31 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
-import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.dto.ArticleHistorySegmentEntry
-import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistorySegmentJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
-import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * 두 스냅샷 사이의 interior 리비전들을 압축 세그먼트 하나로 묶는다.
+ * 두 스냅샷 사이의 interior 리비전들을 압축해, 앞쪽(from) 스냅샷 row에 페이로드로 붙인다.
  *
  * 호출은 [ArticleHistoryCompactionScheduler]에서만 이루어진다(편집 요청 경로와는 완전히 분리).
  */
 @Component
 class ArticleHistoryCompactionService(
-    private val articleRepository: ArticleRepository,
     private val articleHistoryRepository: ArticleHistoryRepository,
-    private val articleHistorySegmentRepository: ArticleHistorySegmentRepository,
+    private val articleSnapshotRepository: ArticleSnapshotRepository,
     private val codec: ArticleHistorySegmentCodec,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
     /**
-     * (fromRevision, toRevision) 스냅샷 구간의 interior 리비전들을 압축 세그먼트 하나로 묶는다.
+     * (fromRevision, toRevision) 스냅샷 구간의 interior 리비전들을 압축해 fromRevision 스냅샷 row에 붙이고,
+     * 원본 interior row를 삭제한다.
      *
-     * 세그먼트 저장 → 원본 삭제 순서를 반드시 지킨다. 저장이 unique 제약 위반 등으로 실패하면 트랜잭션이
-     * 롤백되어 삭제는 전혀 일어나지 않는다 — 다중 인스턴스가 같은 구간을 동시에 압축 시도해도 안전하다.
+     * "페이로드 부착 → 원본 삭제" 순서를 반드시 지킨다. 이 메서드 전체가 하나의 트랜잭션이라 중간에 실패하면
+     * 삭제까지 포함해 전부 롤백된다.
      */
     @Transactional
     fun compactSegment(
@@ -37,8 +35,13 @@ class ArticleHistoryCompactionService(
     ) {
         if (toRevision - fromRevision <= 1) return
 
-        if (articleHistorySegmentRepository.existsByArticleIdAndFromRevision(articleId, fromRevision)) {
-            log.debug("이미 압축된 세그먼트, 스킵 (articleId={}, fromRevision={})", articleId, fromRevision)
+        val fromSnapshot = articleSnapshotRepository.findByArticleIdAndRevision(articleId, fromRevision)
+        if (fromSnapshot == null) {
+            log.warn("압축 대상 스냅샷을 찾을 수 없음, 스킵 (articleId={}, fromRevision={})", articleId, fromRevision)
+            return
+        }
+        if (fromSnapshot.compressedInteriorPayload != null) {
+            log.debug("이미 압축된 구간, 스킵 (articleId={}, fromRevision={})", articleId, fromRevision)
             return
         }
 
@@ -72,15 +75,13 @@ class ArticleHistoryCompactionService(
                 )
             }
 
-        val articleRef = articleRepository.getReferenceById(articleId)
-        articleHistorySegmentRepository.save(
-            ArticleHistorySegmentJpaEntity(articleRef, fromRevision, toRevision, codec.encode(entries)),
-        )
+        fromSnapshot.attachCompressedInteriorPayload(codec.encode(entries))
+        articleSnapshotRepository.save(fromSnapshot)
 
         val deletedCount = articleHistoryRepository.deleteInteriorRevisions(articleId, fromRevision + 1, toRevision - 1)
 
         log.info(
-            "히스토리 세그먼트 압축 완료 (articleId={}, from={}, to={}, interior={}, deleted={})",
+            "히스토리 구간 압축 완료 (articleId={}, from={}, to={}, interior={}, deleted={})",
             articleId,
             fromRevision,
             toRevision,

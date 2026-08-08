@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
-import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -8,7 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
 /**
- * 두 스냅샷 사이의 interior 리비전들을 매일 밤 압축 세그먼트로 묶는 배치.
+ * 두 스냅샷 사이의 interior 리비전들을 매일 밤 압축해 앞쪽 스냅샷 row에 붙이는 배치.
  *
  * [io.github.wntopia.gikipedia.server.domain.article.service.ArticleConsistencyCheckScheduler](04:00)와
  * 겹치지 않도록 30분 뒤에 돈다. 편집 요청 경로와 완전히 분리되어 있으며, 원본 row를 삭제하는 파괴적
@@ -17,7 +16,6 @@ import org.springframework.stereotype.Component
 @Component
 class ArticleHistoryCompactionScheduler(
     private val articleSnapshotRepository: ArticleSnapshotRepository,
-    private val articleHistorySegmentRepository: ArticleHistorySegmentRepository,
     private val articleHistoryCompactionService: ArticleHistoryCompactionService,
     @param:Value("\${article.history.compaction.enabled:true}") private val enabled: Boolean,
 ) {
@@ -36,29 +34,27 @@ class ArticleHistoryCompactionScheduler(
             val snapshotsByArticle =
                 articleSnapshotRepository
                     .findAllRevisionsOrderByArticleAscRevisionAsc()
-                    .groupBy({ it.getArticleId() }, { it.getRevision() })
-            val alreadyCompacted =
-                articleHistorySegmentRepository
-                    .findAllCompactedKeys()
-                    .mapTo(HashSet()) { it.getArticleId() to it.getFromRevision() }
+                    .groupBy({ it.getArticleId() }, { it.getRevision() to it.getCompacted() })
 
             var candidateCount = 0
             var successCount = 0
             snapshotsByArticle.forEach { (articleId, revisions) ->
-                revisions.sorted().zipWithNext().forEach { (from, to) ->
-                    if (to - from <= 1) return@forEach
-                    if ((articleId to from) in alreadyCompacted) return@forEach
+                revisions.sortedBy { it.first }.zipWithNext().forEach { (from, to) ->
+                    val (fromRevision, fromCompacted) = from
+                    val (toRevision, _) = to
+                    if (toRevision - fromRevision <= 1) return@forEach
+                    if (fromCompacted) return@forEach
 
                     candidateCount++
                     try {
-                        articleHistoryCompactionService.compactSegment(articleId, from, to)
+                        articleHistoryCompactionService.compactSegment(articleId, fromRevision, toRevision)
                         successCount++
                     } catch (e: Exception) {
                         log.error(
-                            "세그먼트 압축 실패, 다음 세그먼트는 계속 진행 (articleId={}, from={}, to={})",
+                            "구간 압축 실패, 다음 구간은 계속 진행 (articleId={}, from={}, to={})",
                             articleId,
-                            from,
-                            to,
+                            fromRevision,
+                            toRevision,
                             e,
                         )
                     }
