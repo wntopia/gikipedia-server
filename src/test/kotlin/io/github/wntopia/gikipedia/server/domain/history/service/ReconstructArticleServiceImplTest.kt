@@ -2,9 +2,12 @@ package io.github.wntopia.gikipedia.server.domain.history.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.history.dto.ArticleHistorySegmentEntry
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
+import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistorySegmentJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistorySegmentRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.impl.ReconstructArticleServiceImpl
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
@@ -16,6 +19,8 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
+import team.themoment.sdk.exception.ExpectedException
+import java.time.Instant
 import java.util.Optional
 
 /**
@@ -28,6 +33,8 @@ class ReconstructArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val historyRepository = mock<ArticleHistoryRepository>()
     private val snapshotRepository = mock<ArticleSnapshotRepository>()
+    private val segmentRepository = mock<ArticleHistorySegmentRepository>()
+    private val segmentCodec = mock<ArticleHistorySegmentCodec>()
 
     private lateinit var service: ReconstructArticleServiceImpl
 
@@ -47,7 +54,15 @@ class ReconstructArticleServiceImplTest {
     @BeforeEach
     fun setUp() {
         ReflectionTestUtils.setField(article, "id", articleId)
-        service = ReconstructArticleServiceImpl(articleRepository, historyRepository, snapshotRepository, articleDiff)
+        service =
+            ReconstructArticleServiceImpl(
+                articleRepository,
+                historyRepository,
+                snapshotRepository,
+                segmentRepository,
+                segmentCodec,
+                articleDiff,
+            )
 
         whenever(articleRepository.findById(articleId)).thenReturn(Optional.of(article))
 
@@ -60,11 +75,18 @@ class ReconstructArticleServiceImplTest {
             }
         whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId))
             .thenReturn(histories.sortedByDescending { it.revision })
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(articleId))
+            .thenReturn(histories.maxByOrNull { it.revision })
         whenever(historyRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(any(), any(), any()))
             .thenAnswer { inv ->
                 val from = inv.arguments[1] as Int
                 val to = inv.arguments[2] as Int
                 histories.filter { it.revision in from..to }.sortedBy { it.revision }
+            }
+        whenever(historyRepository.findByArticleIdAndRevision(any(), any()))
+            .thenAnswer { inv ->
+                val rev = inv.arguments[1] as Int
+                histories.find { it.revision == rev }
             }
 
         // 스냅샷: rev1, rev4
@@ -75,6 +97,10 @@ class ReconstructArticleServiceImplTest {
                     .firstOrNull { it.first <= rev }
                     ?.let { snapshot(it.first, it.second) }
             }
+
+        // 기본값: 압축된 세그먼트 없음(listRevisions 테스트에서 필요한 존재 확인 stub 포함).
+        whenever(articleRepository.existsById(articleId)).thenReturn(true)
+        whenever(segmentRepository.findByArticleId(articleId)).thenReturn(emptyList())
     }
 
     @Test
@@ -101,6 +127,64 @@ class ReconstructArticleServiceImplTest {
     fun latestFlag() {
         assertThat(service.reconstruct(articleId, 5).latest).isTrue()
         assertThat(service.reconstruct(articleId, 3).latest).isFalse()
+    }
+
+    @Test
+    @DisplayName("존재하지 않는 리비전(범위 밖)은 항상 404를 던진다")
+    fun nonExistentRevisionThrowsNotFound() {
+        assertThatThrows { service.reconstruct(articleId, 0) }
+        assertThatThrows { service.reconstruct(articleId, 6) }
+    }
+
+    @Test
+    @DisplayName("압축된 interior 구간(리비전 2,3)도 세그먼트에서 복원되어 압축 전과 동일한 content를 반환한다")
+    fun reconstructsFromCompactedSegment() {
+        // 리비전 2,3의 raw row가 삭제된 것처럼 시뮬레이션(압축 후 상태).
+        whenever(historyRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 2))
+            .thenReturn(emptyList())
+        whenever(historyRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 3))
+            .thenReturn(emptyList())
+
+        val entries =
+            listOf(
+                ArticleHistorySegmentEntry(2, "2412 홍길동", articleDiff.generate(revisionContents[0], revisionContents[1]), Instant.EPOCH),
+                ArticleHistorySegmentEntry(3, "2412 홍길동", articleDiff.generate(revisionContents[1], revisionContents[2]), Instant.EPOCH),
+            )
+        val segment = ArticleHistorySegmentJpaEntity(article, fromRevision = 1, toRevision = 4, compressedPayload = ByteArray(0))
+        whenever(segmentRepository.findByArticleIdAndFromRevision(articleId, 1)).thenReturn(segment)
+        whenever(segmentCodec.decode(segment.compressedPayload)).thenReturn(entries)
+
+        assertThat(service.reconstruct(articleId, 2).content).isEqualTo(revisionContents[1])
+        assertThat(service.reconstruct(articleId, 3).content).isEqualTo(revisionContents[2])
+        // 경계 리비전(1,4)과 latest 판별은 압축 여부와 무관하게 그대로 정확해야 한다.
+        assertThat(service.reconstruct(articleId, 4).latest).isFalse()
+        assertThat(service.reconstruct(articleId, 5).latest).isTrue()
+    }
+
+    @Test
+    @DisplayName("listRevisions는 raw row와 압축 세그먼트를 병합해 압축 전과 동일한 목록을 반환한다")
+    fun listRevisionsMergesCompactedSegment() {
+        val beforeCompaction = service.listRevisions(articleId)
+
+        // 리비전 2,3을 세그먼트로 대체(압축 후 상태) — raw 목록에서도 함께 제거된 것처럼 시뮬레이션.
+        whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId))
+            .thenReturn(beforeCompaction.filter { it.revision !in setOf(2, 3) }.map { history(it.revision, "diff") })
+        val entries =
+            listOf(
+                ArticleHistorySegmentEntry(2, "2412 홍길동", "diff-2", Instant.EPOCH),
+                ArticleHistorySegmentEntry(3, "2412 홍길동", "diff-3", Instant.EPOCH),
+            )
+        val segment = ArticleHistorySegmentJpaEntity(article, fromRevision = 1, toRevision = 4, compressedPayload = ByteArray(0))
+        whenever(segmentRepository.findByArticleId(articleId)).thenReturn(listOf(segment))
+        whenever(segmentCodec.decode(segment.compressedPayload)).thenReturn(entries)
+
+        val afterCompaction = service.listRevisions(articleId)
+
+        assertThat(afterCompaction.map { it.revision }).isEqualTo(beforeCompaction.map { it.revision })
+    }
+
+    private fun assertThatThrows(block: () -> Unit) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(block).isInstanceOf(ExpectedException::class.java)
     }
 
     private fun history(
