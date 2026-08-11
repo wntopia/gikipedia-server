@@ -51,14 +51,20 @@ class ArticleCollaborationWebSocketHandler(
             return
         }
 
+        // room에 join하기 전에 bootstrap 내용을 먼저 확정한다 — 존재하지 않는 article이면 여기서
+        // queryArticleService가 404를 던지므로, room을 만들거나 세션을 등록하지 않고 그대로 접속을 거부한다.
+        val bootstrap =
+            runCatching { buildBootstrap(articleId) }
+                .getOrElse {
+                    log.warn("공동편집 접속 거부: article 조회 실패 (articleId={})", articleId, it)
+                    session.close(CloseStatus.NOT_ACCEPTABLE)
+                    return
+                }
+
         editorLabelsBySessionId[session.id] = authenticationReader.getEditorLabel(session.attributes)
-
         val decoratedSession = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, BUFFER_SIZE_LIMIT_BYTES)
-        val room = collaborationRoomRegistry.getOrCreate(articleId)
-        room.cancelPendingSafetyNet()
-        room.join(decoratedSession)
-
-        sendBootstrap(room, articleId, session.id)
+        val room = collaborationRoomRegistry.joinOrCreate(articleId, decoratedSession)
+        room.sendTo(session.id, bootstrap)
     }
 
     override fun handleTextMessage(
@@ -78,15 +84,26 @@ class ArticleCollaborationWebSocketHandler(
                     return
                 }
 
-        when (incoming.type) {
-            CollaborationMessage.TYPE_UPDATE, CollaborationMessage.TYPE_AWARENESS ->
-                room.broadcast(incoming, exceptSessionId = session.id)
+        // handleSync/handleSave가 던질 수 있는 예외(잘못된 base64, 저장 실패 등)를 여기서 한 곳에 모아
+        // 처리한다 — 안 그러면 Spring의 기본 예외 핸들러가 세션 자체를 강제 종료시켜, 다른 참여자는 멀쩡한데
+        // 이 사람만 재접속이 필요해진다.
+        runCatching {
+            when (incoming.type) {
+                CollaborationMessage.TYPE_UPDATE, CollaborationMessage.TYPE_AWARENESS ->
+                    room.broadcast(incoming, exceptSessionId = session.id)
 
-            CollaborationMessage.TYPE_SYNC -> handleSync(room, articleId, session.id, incoming)
+                CollaborationMessage.TYPE_SYNC -> handleSync(room, articleId, session.id, incoming)
 
-            CollaborationMessage.TYPE_SAVE -> handleSave(room, articleId, session.id, incoming)
+                CollaborationMessage.TYPE_SAVE -> handleSave(room, articleId, session.id, incoming)
 
-            else -> log.debug("알 수 없는 협업 메시지 타입: {}", incoming.type)
+                else -> log.debug("알 수 없는 협업 메시지 타입: {}", incoming.type)
+            }
+        }.onFailure { exception ->
+            log.warn("협업 메시지 처리 실패 (articleId={}, type={})", articleId, incoming.type, exception)
+            room.sendTo(
+                session.id,
+                CollaborationMessage(type = CollaborationMessage.TYPE_ERROR, message = "메시지 처리 중 오류가 발생했습니다."),
+            )
         }
     }
 
@@ -103,27 +120,23 @@ class ArticleCollaborationWebSocketHandler(
         }
     }
 
-    private fun sendBootstrap(
-        room: CollaborationRoom,
-        articleId: Long,
-        sessionId: String,
-    ) {
+    /** Redis에 CRDT 상태가 있으면 그 바이트를, 없으면 현재 article의 plain text를 부트스트랩 메시지로 만든다.
+     * article이 존재하지 않으면 [queryArticleService]가 404 예외를 던지며, 호출부가 그 실패를 접속 거부로 다룬다. */
+    private fun buildBootstrap(articleId: Long): CollaborationMessage {
         val persistedState = collaborationCrdtStateStore.get(articleId)
-        val bootstrap =
-            if (persistedState != null) {
-                CollaborationMessage(
-                    type = CollaborationMessage.TYPE_BOOTSTRAP,
-                    dataB64 = Base64.getEncoder().encodeToString(persistedState),
-                )
-            } else {
-                val article = queryArticleService.execute(articleId)
-                CollaborationMessage(
-                    type = CollaborationMessage.TYPE_BOOTSTRAP,
-                    content = article.content,
-                    imageUrl = article.imageUrl,
-                )
-            }
-        room.sendTo(sessionId, bootstrap)
+        return if (persistedState != null) {
+            CollaborationMessage(
+                type = CollaborationMessage.TYPE_BOOTSTRAP,
+                dataB64 = Base64.getEncoder().encodeToString(persistedState),
+            )
+        } else {
+            val article = queryArticleService.execute(articleId)
+            CollaborationMessage(
+                type = CollaborationMessage.TYPE_BOOTSTRAP,
+                content = article.content,
+                imageUrl = article.imageUrl,
+            )
+        }
     }
 
     private fun handleSync(

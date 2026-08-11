@@ -200,4 +200,43 @@ class ArticleCollaborationWebSocketHandlerTest {
 
         verify(scheduledFuture).cancel(false)
     }
+
+    @Test
+    @DisplayName("존재하지 않는 article로 접속하면 room을 만들거나 세션을 등록하지 않고 접속을 거부한다")
+    fun rejectsConnectionForNonexistentArticle() {
+        whenever(queryArticleService.execute(1L)).thenThrow(RuntimeException("존재하지 않는 게시글입니다."))
+        val session = fakeSession("a", 1L, "2412 홍길동")
+
+        handler.afterConnectionEstablished(session)
+
+        verify(session).close(CloseStatus.NOT_ACCEPTABLE)
+        assertThat(collaborationRoomRegistry.findIfActive(1L)).isNull()
+    }
+
+    @Test
+    @DisplayName("sync의 dataB64가 깨진 base64여도 세션을 강제 종료하지 않고 발신자에게 TYPE_ERROR를 보낸다")
+    fun sendsErrorInsteadOfCrashingOnMalformedSyncPayload() {
+        val session = fakeSession("a", 1L, "2412 홍길동")
+        handler.afterConnectionEstablished(session)
+
+        val brokenSync = CollaborationMessage(type = CollaborationMessage.TYPE_SYNC, dataB64 = "!!!not-base64!!!")
+        handler.handleMessage(session, TextMessage(objectMapper.writeValueAsString(brokenSync)))
+
+        assertThat(messagesSentTo(session)).anyMatch { it.type == CollaborationMessage.TYPE_ERROR }
+        verify(session, org.mockito.kotlin.never()).close(any<CloseStatus>())
+    }
+
+    @Test
+    @DisplayName("save 처리 중 예외가 나도 세션을 강제 종료하지 않고 발신자에게 TYPE_ERROR를 보낸다")
+    fun sendsErrorInsteadOfCrashingWhenSaveFails() {
+        whenever(saveCollaborativeRevisionService.save(any(), any(), any())).thenThrow(RuntimeException("저장 실패"))
+        val session = fakeSession("a", 1L, "2412 홍길동")
+        handler.afterConnectionEstablished(session)
+
+        val save = CollaborationMessage(type = CollaborationMessage.TYPE_SAVE, content = "새 내용")
+        handler.handleMessage(session, TextMessage(objectMapper.writeValueAsString(save)))
+
+        assertThat(messagesSentTo(session)).anyMatch { it.type == CollaborationMessage.TYPE_ERROR }
+        verify(session, org.mockito.kotlin.never()).close(any<CloseStatus>())
+    }
 }

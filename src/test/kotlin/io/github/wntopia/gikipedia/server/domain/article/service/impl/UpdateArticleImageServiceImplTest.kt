@@ -5,6 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
+import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
@@ -16,7 +17,9 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.transaction.TransactionStatus
@@ -37,14 +40,15 @@ class UpdateArticleImageServiceImplTest {
     private val session = mock<HttpSession>()
     private val image = mock<MultipartFile>()
 
+    private val articleUpdateTransactionHelper =
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+
     private val service =
         UpdateArticleImageServiceImpl(
-            articleRepository,
             r2Uploader,
-            articleHistoryRecorder,
             authenticationReader,
-            articleCacheStore,
             transactionTemplate,
+            articleUpdateTransactionHelper,
         )
 
     private val article = ArticleJpaEntity(title = "제목", content = "본문", imageUrl = "old.png")
@@ -56,10 +60,14 @@ class UpdateArticleImageServiceImplTest {
         ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(article)
         whenever(authenticationReader.getEditorLabel(session)).thenReturn("2412 홍길동")
+        whenever(image.isEmpty).thenReturn(false)
         whenever(r2Uploader.upload(image, "articles")).thenReturn("new.png")
         // TransactionTemplate.execute는 실제 트랜잭션 매니저 없이, 콜백을 그 자리에서 바로 실행하는 것으로 대체한다.
-        whenever(transactionTemplate.execute<ArticleResDto>(any())).thenAnswer { invocation ->
-            invocation.getArgument<TransactionCallback<ArticleResDto>>(0).doInTransaction(mock<TransactionStatus>())
+        whenever(transactionTemplate.execute<Pair<ArticleResDto, Int?>>(any())).thenAnswer { invocation ->
+            invocation
+                .getArgument<TransactionCallback<Pair<ArticleResDto, Int?>>>(
+                    0,
+                ).doInTransaction(mock<TransactionStatus>())
         }
     }
 
@@ -80,6 +88,17 @@ class UpdateArticleImageServiceImplTest {
 
         assertThatThrownBy { service.execute(1L, UpdateArticleImageReqDto(image), session) }
             .isInstanceOf(ExpectedException::class.java)
+    }
+
+    @Test
+    @DisplayName("비어있는 파일이 오면 업로드/DB 접근 없이 400 예외를 던진다")
+    fun emptyImageThrowsBeforeUploading() {
+        whenever(image.isEmpty).thenReturn(true)
+
+        assertThatThrownBy { service.execute(1L, UpdateArticleImageReqDto(image), session) }
+            .isInstanceOf(ExpectedException::class.java)
+        verify(r2Uploader, never()).upload(any(), any())
+        verifyNoInteractions(articleRepository)
     }
 
     @Test
