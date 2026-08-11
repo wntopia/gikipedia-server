@@ -71,7 +71,7 @@ class ReconstructArticleServiceImpl(
     /**
      * 스냅샷 이후 diff를 순차 적용해 content를 복원하고, 대상 리비전의 editor/createdAt을 함께 찾는다.
      *
-     * interior 구간은 [ArticleHistoryCompactionService]에 의해 원자적으로(스냅샷에 페이로드 부착 + 원본
+     * interior 구간은 [ArticleHistoryCompactor]에 의해 원자적으로(스냅샷에 페이로드 부착 + 원본
      * 삭제가 하나의 트랜잭션) 압축되므로, 요청 범위의 raw row는 "전부 존재" 또는 "전부 압축되어 없음" 두
      * 상태만 가능하다 — 일부만 압축된 중간 상태는 발생하지 않는다.
      */

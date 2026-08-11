@@ -20,12 +20,12 @@ import org.springframework.test.util.ReflectionTestUtils
 import java.time.Instant
 
 /** 스냅샷 구간(fromRevision, toRevision)의 interior 리비전을 압축해 fromRevision 스냅샷에 붙이는 로직 검증. */
-class ArticleHistoryCompactionServiceTest {
+class ArticleHistoryCompactorTest {
     private val articleHistoryRepository = mock<ArticleHistoryRepository>()
     private val articleSnapshotRepository = mock<ArticleSnapshotRepository>()
     private val codec = mock<ArticleHistorySegmentCodec>()
 
-    private val service = ArticleHistoryCompactionService(articleHistoryRepository, articleSnapshotRepository, codec)
+    private val compactor = ArticleHistoryCompactor(articleHistoryRepository, articleSnapshotRepository, codec)
 
     private val articleId = 1L
     private val article = ArticleJpaEntity(title = "제목", content = "무관")
@@ -58,7 +58,7 @@ class ArticleHistoryCompactionServiceTest {
         whenever(codec.encode(any())).thenReturn(encoded)
         whenever(articleHistoryRepository.deleteInteriorRevisions(articleId, 2, 3)).thenReturn(2)
 
-        service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
+        compactor.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
         assertThat(fromSnapshot.compressedInteriorPayload).isEqualTo(encoded)
         verify(articleSnapshotRepository).save(fromSnapshot)
@@ -73,7 +73,7 @@ class ArticleHistoryCompactionServiceTest {
     @Test
     @DisplayName("interior가 없는 구간(연속 스냅샷)은 아무 것도 저장/삭제하지 않는다")
     fun skipsWhenNoInterior() {
-        service.compactSegment(articleId, fromRevision = 1, toRevision = 2)
+        compactor.compactSegment(articleId, fromRevision = 1, toRevision = 2)
 
         verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
@@ -84,7 +84,7 @@ class ArticleHistoryCompactionServiceTest {
     fun skipsWhenSnapshotMissing() {
         whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(null)
 
-        service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
+        compactor.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
         verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
@@ -97,7 +97,7 @@ class ArticleHistoryCompactionServiceTest {
         fromSnapshot.attachCompressedInteriorPayload(byteArrayOf(9))
         whenever(articleSnapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(fromSnapshot)
 
-        service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
+        compactor.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
         verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())
@@ -110,7 +110,7 @@ class ArticleHistoryCompactionServiceTest {
         whenever(articleHistoryRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 2, 3))
             .thenReturn(listOf(history(2))) // 기대치는 2건(2,3)인데 1건만 있음
 
-        service.compactSegment(articleId, fromRevision = 1, toRevision = 4)
+        compactor.compactSegment(articleId, fromRevision = 1, toRevision = 4)
 
         verify(articleSnapshotRepository, never()).save(any())
         verify(articleHistoryRepository, never()).deleteInteriorRevisions(any(), any(), any())

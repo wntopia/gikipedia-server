@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component
 @Component
 class ArticleHistoryCompactionScheduler(
     private val articleSnapshotRepository: ArticleSnapshotRepository,
-    private val articleHistoryCompactionService: ArticleHistoryCompactionService,
+    private val articleHistoryCompactor: ArticleHistoryCompactor,
     @param:Value("\${article.history.compaction.enabled:true}") private val enabled: Boolean,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -47,7 +47,7 @@ class ArticleHistoryCompactionScheduler(
 
                     candidateCount++
                     try {
-                        articleHistoryCompactionService.compactSegment(articleId, fromRevision, toRevision)
+                        articleHistoryCompactor.compactSegment(articleId, fromRevision, toRevision)
                         successCount++
                     } catch (e: Exception) {
                         log.error(

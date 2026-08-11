@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
  * 호출은 [ArticleHistoryCompactionScheduler]에서만 이루어진다(편집 요청 경로와는 완전히 분리).
  */
 @Component
-class ArticleHistoryCompactionService(
+class ArticleHistoryCompactor(
     private val articleHistoryRepository: ArticleHistoryRepository,
     private val articleSnapshotRepository: ArticleSnapshotRepository,
     private val codec: ArticleHistorySegmentCodec,

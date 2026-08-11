@@ -25,10 +25,10 @@ private data class SnapshotRevisionView(
 /** 야간 압축 배치의 대상 탐색(인접 스냅샷 쌍, 이미 압축된 것 제외)과 부분 실패 격리 검증. */
 class ArticleHistoryCompactionSchedulerTest {
     private val snapshotRepository = mock<ArticleSnapshotRepository>()
-    private val compactionService = mock<ArticleHistoryCompactionService>()
+    private val compactor = mock<ArticleHistoryCompactor>()
 
     private fun scheduler(enabled: Boolean = true) =
-        ArticleHistoryCompactionScheduler(snapshotRepository, compactionService, enabled)
+        ArticleHistoryCompactionScheduler(snapshotRepository, compactor, enabled)
 
     @Test
     @DisplayName("아직 압축 안 된 인접 스냅샷 쌍만 압축을 호출하고, open tail은 대상에서 제외한다")
@@ -44,8 +44,8 @@ class ArticleHistoryCompactionSchedulerTest {
 
         scheduler().compact()
 
-        verify(compactionService, never()).compactSegment(1L, 1, 4)
-        verify(compactionService).compactSegment(1L, 4, 7)
+        verify(compactor, never()).compactSegment(1L, 1, 4)
+        verify(compactor).compactSegment(1L, 4, 7)
     }
 
     @Test
@@ -59,12 +59,12 @@ class ArticleHistoryCompactionSchedulerTest {
                 SnapshotRevisionView(2L, 4, compacted = false),
             ),
         )
-        whenever(compactionService.compactSegment(1L, 1, 4)).thenThrow(RuntimeException("boom"))
+        whenever(compactor.compactSegment(1L, 1, 4)).thenThrow(RuntimeException("boom"))
 
         scheduler().compact()
 
-        verify(compactionService).compactSegment(1L, 1, 4)
-        verify(compactionService).compactSegment(2L, 1, 4)
+        verify(compactor).compactSegment(1L, 1, 4)
+        verify(compactor).compactSegment(2L, 1, 4)
     }
 
     @Test
@@ -75,7 +75,7 @@ class ArticleHistoryCompactionSchedulerTest {
 
         scheduler().compact()
 
-        verify(compactionService, never()).compactSegment(any(), any(), any())
+        verify(compactor, never()).compactSegment(any(), any(), any())
     }
 
     @Test
@@ -84,6 +84,6 @@ class ArticleHistoryCompactionSchedulerTest {
         scheduler(enabled = false).compact()
 
         verify(snapshotRepository, never()).findAllRevisionsOrderByArticleAscRevisionAsc()
-        verify(compactionService, never()).compactSegment(any(), any(), any())
+        verify(compactor, never()).compactSegment(any(), any(), any())
     }
 }
