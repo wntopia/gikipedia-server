@@ -1,6 +1,6 @@
 package io.github.wntopia.gikipedia.server.domain.article.service.impl
 
-import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleImageReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
@@ -25,16 +25,12 @@ import org.springframework.test.util.ReflectionTestUtils
 import org.springframework.transaction.TransactionStatus
 import org.springframework.transaction.support.TransactionCallback
 import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.web.multipart.MultipartFile
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
-/**
- * 수정 시 행 잠금 조회(findByIdForUpdate)를 쓰는지, R2 업로드가 잠금 전에 끝나는지 검증.
- * 행 잠금+기록+캐시 시퀀스 자체는 [ArticleUpdateTransactionHelper]의 실제 인스턴스를 그대로 통해서
- * 검증한다(mock으로 대체하지 않음) — 그래야 기존 검증(findByIdForUpdate 호출, 캐시 반영 등)이 그대로 유효하다.
- * 실제 잠금 동작(동시 트랜잭션 직렬화) 자체는 단위 테스트로 검증할 수 없어 통합 테스트 영역이다.
- */
-class UpdateArticleServiceImplTest {
+/** 이미지 전용 수정: content는 건드리지 않고 imageUrl만 바뀌며, 리비전은 새로 만들지 않는지 검증. */
+class UpdateArticleImageServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val r2Uploader = mock<R2Uploader>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
@@ -42,19 +38,20 @@ class UpdateArticleServiceImplTest {
     private val articleCacheStore = mock<ArticleCacheStore>()
     private val transactionTemplate = mock<TransactionTemplate>()
     private val session = mock<HttpSession>()
+    private val image = mock<MultipartFile>()
 
     private val articleUpdateTransactionHelper =
         ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
 
     private val service =
-        UpdateArticleServiceImpl(
+        UpdateArticleImageServiceImpl(
             r2Uploader,
             authenticationReader,
             transactionTemplate,
             articleUpdateTransactionHelper,
         )
 
-    private val article = ArticleJpaEntity(title = "제목", content = "이전 내용", imageUrl = "old.png")
+    private val article = ArticleJpaEntity(title = "제목", content = "본문", imageUrl = "old.png")
 
     @BeforeEach
     fun setUp() {
@@ -63,6 +60,8 @@ class UpdateArticleServiceImplTest {
         ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(article)
         whenever(authenticationReader.getEditorLabel(session)).thenReturn("2412 홍길동")
+        whenever(image.isEmpty).thenReturn(false)
+        whenever(r2Uploader.upload(image, "articles")).thenReturn("new.png")
         // TransactionTemplate.execute는 실제 트랜잭션 매니저 없이, 콜백을 그 자리에서 바로 실행하는 것으로 대체한다.
         whenever(transactionTemplate.execute<Pair<ArticleResDto, Int?>>(any())).thenAnswer { invocation ->
             invocation
@@ -73,12 +72,13 @@ class UpdateArticleServiceImplTest {
     }
 
     @Test
-    @DisplayName("행 잠금 조회(findByIdForUpdate)로 article을 가져오고, 잠금 없는 findById는 쓰지 않는다")
-    fun usesLockedFetch() {
-        service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
+    @DisplayName("행 잠금 조회로 article을 가져오고 content는 그대로 유지한 채 imageUrl만 바꾼다")
+    fun updatesImageUrlOnly() {
+        val response = service.execute(1L, UpdateArticleImageReqDto(image), session)
 
         verify(articleRepository).findByIdForUpdate(1L)
-        verify(articleRepository, never()).findById(any())
+        assertThat(response.content).isEqualTo("본문")
+        assertThat(response.imageUrl).isEqualTo("new.png")
     }
 
     @Test
@@ -86,33 +86,33 @@ class UpdateArticleServiceImplTest {
     fun notFoundThrows() {
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(null)
 
-        assertThatThrownBy { service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session) }
+        assertThatThrownBy { service.execute(1L, UpdateArticleImageReqDto(image), session) }
             .isInstanceOf(ExpectedException::class.java)
     }
 
     @Test
-    @DisplayName("존재하지 않는 article이면 인증 정보를 조회하기도 전에 404로 실패한다(401보다 404가 우선)")
-    fun notFoundTakesPrecedenceOverAuth() {
-        whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(null)
+    @DisplayName("비어있는 파일이 오면 업로드/DB 접근 없이 400 예외를 던진다")
+    fun emptyImageThrowsBeforeUploading() {
+        whenever(image.isEmpty).thenReturn(true)
 
-        assertThatThrownBy { service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session) }
+        assertThatThrownBy { service.execute(1L, UpdateArticleImageReqDto(image), session) }
             .isInstanceOf(ExpectedException::class.java)
-        verifyNoInteractions(authenticationReader)
-    }
-
-    @Test
-    @DisplayName("이미지가 없으면 기존 imageUrl을 유지한다")
-    fun keepsExistingImageUrlWhenNoNewImage() {
-        val response = service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
-
-        assertThat(response.imageUrl).isEqualTo("old.png")
         verify(r2Uploader, never()).upload(any(), any())
+        verifyNoInteractions(articleRepository)
+    }
+
+    @Test
+    @DisplayName("content 변화가 없으므로 리비전을 새로 만들지 않고 이벤트 재발행용으로만 record를 호출한다")
+    fun recordsWithoutContentChangeForEventReplay() {
+        service.execute(1L, UpdateArticleImageReqDto(image), session)
+
+        verify(articleHistoryRecorder).record(article, "본문", "본문", "2412 홍길동")
     }
 
     @Test
     @DisplayName("수정 응답을 커밋 이후 Redis 캐시에 채운다")
     fun cachesResponseAfterCommit() {
-        val response = service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
+        val response = service.execute(1L, UpdateArticleImageReqDto(image), session)
 
         verify(articleCacheStore).putAfterCommit(response)
     }

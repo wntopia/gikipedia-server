@@ -4,6 +4,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_KEY_PREFIX
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
@@ -21,7 +22,7 @@ class CreateArticleServiceImpl(
 ) : CreateArticleService {
     @Transactional
     override fun execute(reqDto: CreateArticleReqDto): ArticleResDto {
-        val imageUrl = reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, IMAGE_KEY_PREFIX) }
+        val imageUrl = reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, ARTICLE_IMAGE_KEY_PREFIX) }
         val saved = articleRepository.save(ArticleJpaEntity(reqDto.title, reqDto.content, imageUrl))
 
         // article_histories의 리비전 체계("리비전 1 = 생성 시점 그대로")와 맞춰, Mongo 뷰도 생성 시점에
@@ -44,7 +45,6 @@ class CreateArticleServiceImpl(
     }
 
     companion object {
-        private const val IMAGE_KEY_PREFIX = "articles"
         private const val BASELINE_REVISION = 1
     }
 }

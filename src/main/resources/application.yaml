@@ -56,6 +56,10 @@ app:
       max-entries: ${ARTICLE_REVISION_CACHE_MAX_ENTRIES:10000}
       ttl-hours: ${ARTICLE_REVISION_CACHE_TTL_HOURS:6}
 
+collaboration:
+  crdt-ttl-hours: ${COLLABORATION_CRDT_TTL_HOURS:6}
+  leave-debounce-seconds: ${COLLABORATION_LEAVE_DEBOUNCE_SECONDS:20}
+
 article:
   snapshot:
     interval: ${ARTICLE_SNAPSHOT_INTERVAL:10}

@@ -61,6 +61,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
     mvn"org.springframework.boot:spring-boot-starter-thymeleaf",
     mvn"org.springframework.boot:spring-boot-starter-validation",
     mvn"org.springframework.boot:spring-boot-starter-webmvc",
+    mvn"org.springframework.boot:spring-boot-starter-websocket",
     mvn"org.springframework.session:spring-session-data-redis",
     mvn"org.springframework.modulith:spring-modulith-starter-core",
     mvn"org.springframework.modulith:spring-modulith-starter-jpa",
