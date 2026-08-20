@@ -20,7 +20,12 @@ class ArticleHistorySegmentCodecTest {
         val entries =
             listOf(
                 ArticleHistorySegmentEntry(3, "2412 홍길동", "diff-3", Instant.parse("2026-01-03T00:00:00Z")),
-                ArticleHistorySegmentEntry(2, "2412 김철수", "diff-2\n특수문자 !@#\n개행 포함", Instant.parse("2026-01-02T00:00:00Z")),
+                ArticleHistorySegmentEntry(
+                    2,
+                    "2412 김철수",
+                    "diff-2\n특수문자 !@#\n개행 포함",
+                    Instant.parse("2026-01-02T00:00:00Z"),
+                ),
             )
 
         val decoded = codec.decode(codec.encode(entries))

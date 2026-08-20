@@ -148,8 +148,18 @@ class ReconstructArticleServiceImplTest {
 
         val entries =
             listOf(
-                ArticleHistorySegmentEntry(2, "2412 홍길동", articleDiff.generate(revisionContents[0], revisionContents[1]), Instant.EPOCH),
-                ArticleHistorySegmentEntry(3, "2412 홍길동", articleDiff.generate(revisionContents[1], revisionContents[2]), Instant.EPOCH),
+                ArticleHistorySegmentEntry(
+                    2,
+                    "2412 홍길동",
+                    articleDiff.generate(revisionContents[0], revisionContents[1]),
+                    Instant.EPOCH,
+                ),
+                ArticleHistorySegmentEntry(
+                    3,
+                    "2412 홍길동",
+                    articleDiff.generate(revisionContents[1], revisionContents[2]),
+                    Instant.EPOCH,
+                ),
             )
         val payload = byteArrayOf(1, 2, 3)
         snapshot1.attachCompressedInteriorPayload(payload)

@@ -134,7 +134,11 @@ class ReconstructArticleServiceImpl(
         val compactedSummaries =
             articleSnapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId).flatMap {
                 articleHistorySegmentCodec.decode(requireNotNull(it.compressedInteriorPayload)).map { entry ->
-                    ArticleRevisionSummaryResDto(revision = entry.revision, editor = entry.editor, editedAt = entry.createdAt)
+                    ArticleRevisionSummaryResDto(
+                        revision = entry.revision,
+                        editor = entry.editor,
+                        editedAt = entry.createdAt,
+                    )
                 }
             }
 
