@@ -65,7 +65,6 @@ jobs:
     steps:
       - name: Resolve notification metadata
         id: metadata
-        if: ${{ env.DISCORD_WEBHOOK != '' }}
         env:
           EVENT_NAME: ${{ github.event_name }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -89,12 +88,11 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Send Discord Notification
-        if: ${{ env.DISCORD_WEBHOOK != '' }}
         uses: sarisia/actions-status-discord@v1
         with:
           webhook: ${{ env.DISCORD_WEBHOOK }}
           status: ${{ needs.build.result }}
-          nofail: true
+          nofail: false
           nocontext: true
           title: "Gikipedia Server CI"
           url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
