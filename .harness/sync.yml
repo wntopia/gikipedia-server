@@ -6,8 +6,14 @@ groups:
 overrides:
   claude/skills/kotest-guide: false
   claude/skills/kotlin-spring-arch: false
+  claude/skills/nextjs-fsd-architecture: false
+  claude/skills/nextjs-turborepo-fsd: false
+  claude/skills/nextjs-package-boundaries: false
+  claude/skills/tailwind-shadcn: false
+  claude/skills/tanstack-query-zod: false
   claude/agents/kotlin-convention-validator: false
   claude/agents/kotlin-test-fixer: false
+  claude/agents/frontend-convention-validator: false
 
   claude/hooks/dispatcher: true
   claude/settings: true
@@ -18,8 +24,14 @@ overrides:
 
   codex/skills/kotest-guide: false
   codex/skills/kotlin-spring-arch: false
+  codex/skills/nextjs-fsd-architecture: false
+  codex/skills/nextjs-turborepo-fsd: false
+  codex/skills/nextjs-package-boundaries: false
+  codex/skills/tailwind-shadcn: false
+  codex/skills/tanstack-query-zod: false
   codex/agents/kotlin-convention-validator: false
   codex/agents/kotlin-test-fixer: false
+  codex/agents/frontend-convention-validator: false
 
   codex/hooks/dispatcher: true
   codex/hooks-json: true
