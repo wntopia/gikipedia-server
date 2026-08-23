@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils
 import org.springframework.web.util.UriComponentsBuilder
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient
 import team.themoment.datagsm.sdk.oauth.exception.DataGsmException
+import team.themoment.datagsm.sdk.oauth.model.AccountObjectType
 import team.themoment.datagsm.sdk.oauth.model.ClubInfo
 import team.themoment.datagsm.sdk.oauth.model.Student
 import team.themoment.datagsm.sdk.oauth.model.TokenResponse
@@ -125,7 +126,7 @@ class SigninServiceImpl(
             userInfo.id,
             userInfo.email,
             enumName(userInfo.role),
-            userInfo.getIsStudent(),
+            userInfo.objectType == AccountObjectType.STUDENT,
             toDataGsmStudentInfoResDto(userInfo.student),
         )
 

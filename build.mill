@@ -6,11 +6,11 @@ import _root_.mill.kotlinlib.*
 import _root_.mill.javalib.spotless.*
 import _root_.mill.javalib.spring.boot.*
 
-val kotlinVer = "2.2.0"
+val kotlinVer: String = "2.3.21"
 
 object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
   def artifactName = "gikipedia-server"
-  def springBootPlatformVersion = "4.1.0"
+  def springBootPlatformVersion = "4.1.1"
   def mainClass = Some("io.github.wntopia.gikipedia.server.GikipediaServerApplicationKt")
   def jvmVersion = "25"
   def kotlinVersion = kotlinVer
@@ -45,14 +45,14 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
   )
 
   def bomMvnDeps: T[Seq[Dep]] = Seq(
-    mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
+    mvn"org.springframework.boot:spring-boot-dependencies:4.1.1",
     mvn"org.springframework.modulith:spring-modulith-bom:2.1.0",
-    mvn"software.amazon.awssdk:bom:2.29.52"
+    mvn"software.amazon.awssdk:bom:2.54.2"
   )
 
   def mvnDeps: T[Seq[Dep]] = Seq(
     mvn"org.jetbrains.kotlin:kotlin-reflect",
-    mvn"com.fasterxml.jackson.module:jackson-module-kotlin",
+    mvn"tools.jackson.module:jackson-module-kotlin",
     mvn"org.springframework.boot:spring-boot-starter-cache",
     mvn"org.springframework.boot:spring-boot-starter-data-jpa",
     mvn"org.springframework.boot:spring-boot-starter-data-redis",
@@ -66,16 +66,14 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
     mvn"org.springframework.modulith:spring-modulith-starter-core",
     mvn"org.springframework.modulith:spring-modulith-starter-jpa",
     mvn"org.thymeleaf.extras:thymeleaf-extras-springsecurity6",
-    mvn"com.github.themoment-team:datagsm-oauth-sdk-java:1.5.0",
-    mvn"com.github.themoment-team:the-sdk:1.4",
-    mvn"io.github.openfeign.querydsl:querydsl-jpa:$querydslVersion",
+    mvn"com.github.themoment-team:datagsm-oauth-sdk-java:1.6.0",
+    mvn"com.github.themoment-team:the-sdk:1.5",
+    mvn"io.github.openfeign.querydsl:querydsl-jpa:7.6",
     mvn"io.github.java-diff-utils:java-diff-utils:4.17",
     mvn"com.github.ben-manes.caffeine:caffeine",
     mvn"software.amazon.awssdk:s3",
     mvn"software.amazon.awssdk:url-connection-client"
   )
-
-  def querydslVersion = "7.4.0"
 
   def runMvnDeps: T[Seq[Dep]] = Seq(mvn"com.mysql:mysql-connector-j")
 
@@ -111,7 +109,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
 
   object test extends KotlinMavenTests, SpringBootTestsModule, TestModule.Junit5 {
     def bomMvnDeps: T[Seq[Dep]] = Seq(
-      mvn"org.springframework.boot:spring-boot-dependencies:4.1.0",
+      mvn"org.springframework.boot:spring-boot-dependencies:4.1.1",
       mvn"org.springframework.modulith:spring-modulith-bom:2.1.0"
     )
 
@@ -123,7 +121,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
       mvn"org.springframework.boot:spring-boot-starter-thymeleaf-test",
       mvn"org.springframework.boot:spring-boot-starter-webmvc-test",
       mvn"org.springframework.modulith:spring-modulith-starter-test",
-      mvn"org.mockito.kotlin:mockito-kotlin:5.4.0"
+      mvn"org.mockito.kotlin:mockito-kotlin:6.3.0"
     )
 
     def runMvnDeps: T[Seq[Dep]] = Seq(

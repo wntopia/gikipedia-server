@@ -33,8 +33,8 @@ class CollaborationWebSocketConfig(
     @Bean
     fun collaborationWebSocketContainer(): ServletServerContainerFactoryBean =
         ServletServerContainerFactoryBean().apply {
-            setMaxTextMessageBufferSize(MAX_MESSAGE_BUFFER_SIZE_BYTES)
-            setMaxBinaryMessageBufferSize(MAX_MESSAGE_BUFFER_SIZE_BYTES)
+            maxTextMessageBufferSize = MAX_MESSAGE_BUFFER_SIZE_BYTES
+            maxBinaryMessageBufferSize = MAX_MESSAGE_BUFFER_SIZE_BYTES
         }
 
     companion object {

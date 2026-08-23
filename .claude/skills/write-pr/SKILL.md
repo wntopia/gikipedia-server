@@ -1,6 +1,6 @@
 ---
 name: write-pr
-description: Generate a PR title, body, and a single label from commits since the base branch, then create the PR on GitHub. Handles base branch detection, label selection, and PR creation end-to-end.
+description: Generate a PR title and body from commits since the base branch, then create the PR on GitHub. Handles base branch detection and PR creation end-to-end.
 allowed-tools: Bash(git *:*), Bash(bash *create-pr.sh:*), Bash(cat *:*), Read, Write
 ---
 
@@ -19,9 +19,8 @@ Also read the PR template:
 cat .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-## Step 2 — Determine the Label
+## Step 2 — Read Conventions
 
-Read `${CLAUDE_SKILL_DIR}/references/labels.md` and select **exactly one** label based on the nature of the changes. When several labels apply, follow the priority order in that reference and keep only the top match.
 Read `${CLAUDE_SKILL_DIR}/references/commit-conventions.md` for commit type and scope naming rules.
 
 ## Step 3 — Generate PR Content
@@ -47,9 +46,6 @@ Write the body to `PR_BODY.md`, then display:
 2. [title2]
 3. [title3]
 
-## 선택된 라벨
-- label
-
 ## PR 본문 미리보기
 [body content]
 ```
@@ -58,15 +54,11 @@ Use AskUserQuestion to ask the user which title to use (present options 1/2/3). 
 
 ## Step 5 — Create PR
 
-Run the creation script with the confirmed title and the single label:
+Run the creation script with the confirmed title:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/create-pr.sh" "<confirmed-title>" "PR_BODY.md" "<label>"
+bash "${CLAUDE_SKILL_DIR}/scripts/create-pr.sh" "<confirmed-title>" "PR_BODY.md"
 ```
 
-The script drops the label and creates the PR unlabeled when the repository does not have that
-label. Never create a missing label or swap in a different one — an unlabeled PR is the expected
-outcome there.
-
-After creation, display the PR URL. If the label was dropped, say so in one line.
+After creation, display the PR URL.
 Cleanup: remove `PR_BODY.md`.

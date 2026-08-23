@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.model
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions.assertThatCode
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -10,6 +9,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 /** 릴레이(broadcast/sendTo) 대상 선택과, 한 세션의 전송 실패가 다른 세션·호출자에게 전파되지 않는지 검증. */
 class CollaborationRoomTest {

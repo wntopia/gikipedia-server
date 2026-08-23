@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.event
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationMessage
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationRoom
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationRoomRegistry
@@ -15,6 +14,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 
 /**
