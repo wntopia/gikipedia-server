@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.websocket
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationMessage
@@ -23,6 +22,7 @@ import org.springframework.scheduling.TaskScheduler
 import org.springframework.web.socket.CloseStatus
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.net.URI
 import java.time.Instant
 import java.util.concurrent.ScheduledFuture

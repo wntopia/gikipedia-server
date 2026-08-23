@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.history.dto.response.ArticleRev
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
+import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryCompactor
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistorySegmentCodec
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff

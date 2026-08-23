@@ -1,17 +1,15 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.registerKotlinModule
 import io.github.wntopia.gikipedia.server.domain.history.dto.ArticleHistorySegmentEntry
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 
 /** encode(JSON+gzip) → decode 라운드트립이 원본 데이터를 정확히 복원하는지 검증한다. */
 class ArticleHistorySegmentCodecTest {
-    private val objectMapper = ObjectMapper().registerKotlinModule().registerModule(JavaTimeModule())
+    private val objectMapper = jacksonObjectMapper()
     private val codec = ArticleHistorySegmentCodec(objectMapper)
 
     @Test

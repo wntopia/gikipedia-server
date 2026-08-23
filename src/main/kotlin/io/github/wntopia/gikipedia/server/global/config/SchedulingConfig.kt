@@ -8,6 +8,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler
 @Configuration
 @EnableScheduling
 class SchedulingConfig {
+    @Suppress("UsePropertyAccessSyntax")
     @Bean
     fun taskScheduler(): ThreadPoolTaskScheduler =
         ThreadPoolTaskScheduler().apply {

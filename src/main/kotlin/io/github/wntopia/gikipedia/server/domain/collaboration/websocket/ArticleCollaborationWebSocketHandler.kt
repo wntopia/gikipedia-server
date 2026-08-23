@@ -1,6 +1,5 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.websocket
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationMessage
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationRoom
@@ -17,6 +16,7 @@ import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator
 import org.springframework.web.socket.handler.TextWebSocketHandler
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap

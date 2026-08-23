@@ -1,9 +1,9 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.service
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationRoom
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.databind.ObjectMapper
 import java.util.concurrent.ConcurrentHashMap
 
 /**

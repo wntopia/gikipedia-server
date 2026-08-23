@@ -1,12 +1,12 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.service
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 /** article 단위 room 생성/조회/제거의 레퍼런스 동일성·재입장 레이스 방지 로직을 검증. */
 class CollaborationRoomRegistryTest {

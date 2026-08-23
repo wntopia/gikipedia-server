@@ -1,9 +1,9 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.model
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
+import tools.jackson.databind.ObjectMapper
 import java.util.concurrent.ScheduledFuture
 
 /**
