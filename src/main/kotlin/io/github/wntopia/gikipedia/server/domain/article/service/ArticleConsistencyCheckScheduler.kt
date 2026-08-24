@@ -4,6 +4,7 @@ import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleMongo
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
@@ -28,36 +29,60 @@ class ArticleConsistencyCheckScheduler(
         // "마지막 안전망"이라, 실패했을 때 아무 흔적 없이 그냥 안 도는 것보다는 실패 사실이 로그로
         // 남는 게 중요하다.
         try {
-            val allArticleIds = articleRepository.findAllIds()
-            val trueRevisions =
-                articleHistoryRepository
-                    .findLatestRevisionPerArticle()
-                    .associate { it.getArticleId() to it.getRevision() }
-            val mongoRevisions = articleMongoRepository.findAll().associate { it.documentId to it.revision }
-
+            // article id를 CHUNK_SIZE씩 끊어 읽고, 리비전 조회도 그 청크에 속한 id로만 제한한다 — 전체
+            // article/리비전/Mongo 문서를 한꺼번에 Map으로 올리면 문서 수에 비례해 힙이 늘어 OOM으로 이어진다.
+            // 이렇게 하면 상주 메모리가 문서 수와 무관하게 청크 크기로 고정된다.
+            var afterId = 0L
+            var scannedCount = 0
             var mismatchCount = 0
-            allArticleIds.forEach { articleId ->
-                // 한 번도 수정 안 된 문서는 article_histories에 행이 없다 — 그 경우 "생성 시점 그대로"인
-                // 리비전 1이 정답이다(CreateArticleServiceImpl이 발행하는 baseline과 동일한 값).
-                val trueRevision = trueRevisions[articleId] ?: BASELINE_REVISION
-                val mongoRevision = mongoRevisions[articleId]
 
-                if (mongoRevision == null || mongoRevision < trueRevision) {
-                    mismatchCount++
-                    log.warn(
-                        "MySQL-Mongo 리비전 불일치 발견, 자동 복구 (articleId={}, mysql={}, mongo={})",
-                        articleId,
-                        trueRevision,
-                        mongoRevision,
-                    )
-                    repair(articleId, trueRevision)
+            while (true) {
+                val articleIds = articleRepository.findIdsAfter(afterId, PageRequest.ofSize(CHUNK_SIZE))
+                if (articleIds.isEmpty()) {
+                    break
                 }
+                afterId = articleIds.last()
+                scannedCount += articleIds.size
+                mismatchCount += checkAndRepairChunk(articleIds)
             }
 
-            log.info("일일 정합성 검사 완료 (대상={}, 불일치={})", allArticleIds.size, mismatchCount)
+            log.info("일일 정합성 검사 완료 (대상={}, 불일치={})", scannedCount, mismatchCount)
         } catch (e: Exception) {
             log.error("일일 정합성 검사 배치 실행 중 실패 — 이번 회차는 복구가 수행되지 않았다", e)
         }
+    }
+
+    /** article id 청크 1개를 검사하고 뒤처진 문서를 복구한다. 반환값은 그 청크에서 발견한 불일치 건수다. */
+    private fun checkAndRepairChunk(articleIds: List<Long>): Int {
+        val trueRevisions =
+            articleHistoryRepository
+                .findLatestRevisionPerArticleIn(articleIds)
+                .associate { it.getArticleId() to it.getRevision() }
+        val mongoRevisions =
+            articleMongoRepository.findByDocumentIdIn(articleIds).associate {
+                it.documentId to
+                    it.revision
+            }
+
+        var mismatchCount = 0
+        articleIds.forEach { articleId ->
+            // 한 번도 수정 안 된 문서는 article_histories에 행이 없다 — 그 경우 "생성 시점 그대로"인
+            // 리비전 1이 정답이다(CreateArticleServiceImpl이 발행하는 baseline과 동일한 값).
+            val trueRevision = trueRevisions[articleId] ?: BASELINE_REVISION
+            val mongoRevision = mongoRevisions[articleId]
+
+            if (mongoRevision == null || mongoRevision < trueRevision) {
+                mismatchCount++
+                log.warn(
+                    "MySQL-Mongo 리비전 불일치 발견, 자동 복구 (articleId={}, mysql={}, mongo={})",
+                    articleId,
+                    trueRevision,
+                    mongoRevision,
+                )
+                repair(articleId, trueRevision)
+            }
+        }
+        return mismatchCount
     }
 
     /**
@@ -98,5 +123,8 @@ class ArticleConsistencyCheckScheduler(
 
     companion object {
         private const val BASELINE_REVISION = 1
+
+        /** 한 번에 메모리에 올릴 article id 개수. */
+        private const val CHUNK_SIZE = 500
     }
 }

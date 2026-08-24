@@ -20,11 +20,14 @@ interface ArticleHistoryRepository : JpaRepository<ArticleHistoryJpaEntity, Long
     /** 히스토리 목록(버전 히스토리 페이지)용. 최신 리비전이 먼저 온다. */
     fun findByArticleIdOrderByRevisionDesc(articleId: Long): List<ArticleHistoryJpaEntity>
 
-    /** 일일 정합성 검사 배치용 — article별 최신(=MAX) 리비전을 한 번에 조회한다. */
+    /** 일일 정합성 검사 배치용 — 주어진 article 청크에 한해 article별 최신(=MAX) 리비전을 한 번에 조회한다. */
     @Query(
-        "SELECT h.article.id AS articleId, MAX(h.revision) AS revision FROM ArticleHistoryJpaEntity h GROUP BY h.article.id",
+        "SELECT h.article.id AS articleId, MAX(h.revision) AS revision FROM ArticleHistoryJpaEntity h " +
+            "WHERE h.article.id IN :articleIds GROUP BY h.article.id",
     )
-    fun findLatestRevisionPerArticle(): List<ArticleLatestRevisionView>
+    fun findLatestRevisionPerArticleIn(
+        @Param("articleIds") articleIds: Collection<Long>,
+    ): List<ArticleLatestRevisionView>
 
     /** reconstruct() fallback에서 스냅샷 경계 리비전 1건의 editor/createdAt을 직접 조회한다. */
     fun findByArticleIdAndRevision(

@@ -26,7 +26,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
 
   def kotlincOptions: T[Seq[String]] = super.kotlincOptions() ++ Seq(
     "-jvm-target",
-    "17",
+    "25",
     "-Xjsr305=strict",
     // @JsonProperty/@BindParam 등을 파라미터뿐 아니라 프로퍼티/필드에도 적용 (Jackson 역직렬화 정합성)
     "-Xannotation-default-target=param-property",

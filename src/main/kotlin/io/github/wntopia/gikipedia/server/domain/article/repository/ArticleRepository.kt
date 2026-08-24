@@ -2,15 +2,25 @@ package io.github.wntopia.gikipedia.server.domain.article.repository
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
-    /** 일일 정합성 검사 배치가 훑을 전체 article id 목록. */
-    @Query("SELECT a.id FROM ArticleJpaEntity a")
-    fun findAllIds(): List<Long>
+    /**
+     * 일일 정합성 검사 배치가 청크 단위로 훑을 article id 목록.
+     *
+     * 전체 id를 한 번에 올리면 문서 수에 비례해 힙을 먹으므로, 마지막으로 처리한 id 이후부터 [pageable]
+     * 크기만큼만 끊어 가져오는 keyset 페이징을 쓴다. OFFSET 페이징과 달리 뒤쪽 청크로 갈수록 느려지지 않고,
+     * 스캔 도중 새 article이 끼어들어도 앞선 청크를 다시 읽지 않는다.
+     */
+    @Query("SELECT a.id FROM ArticleJpaEntity a WHERE a.id > :afterId ORDER BY a.id")
+    fun findIdsAfter(
+        @Param("afterId") afterId: Long,
+        pageable: Pageable,
+    ): List<Long>
 
     /**
      * 같은 article에 대한 동시 수정 요청을 직렬화하기 위한 행 잠금(`SELECT ... FOR UPDATE`) 조회.
