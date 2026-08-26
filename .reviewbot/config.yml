@@ -1,0 +1,12 @@
+language: ko
+tone: sandrone
+emoji: false
+minSeverity: minor
+maxInlineComments: 25
+threadReply: true
+
+sandrone:
+  autoReview: true
+  autoReviewOnPush: false
+  summaryPlacement: new-comment
+  maxReviewBatches: 4

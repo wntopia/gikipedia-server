@@ -1,6 +1,6 @@
 ---
 name: write-pr
-description: Generate PR title, body, and labels from commits since the base branch, then create the PR on GitHub. Handles base branch detection, label selection, and PR creation end-to-end.
+description: Generate a PR title and body from commits since the base branch, then create the PR on GitHub. Handles base branch detection and PR creation end-to-end.
 allowed-tools: Bash(git *:*), Bash(bash *create-pr.sh:*), Bash(cat *:*), Read, Write
 ---
 
@@ -19,9 +19,8 @@ Also read the PR template:
 cat .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-## Step 2 — Determine Labels
+## Step 2 — Read Conventions
 
-Read `${CLAUDE_SKILL_DIR}/references/labels.md` and select 1–2 appropriate labels based on the nature of the changes.
 Read `${CLAUDE_SKILL_DIR}/references/commit-conventions.md` for commit type and scope naming rules.
 
 ## Step 3 — Generate PR Content
@@ -47,9 +46,6 @@ Write the body to `PR_BODY.md`, then display:
 2. [title2]
 3. [title3]
 
-## 선택된 라벨
-- label1, label2
-
 ## PR 본문 미리보기
 [body content]
 ```
@@ -58,10 +54,10 @@ Use AskUserQuestion to ask the user which title to use (present options 1/2/3). 
 
 ## Step 5 — Create PR
 
-Run the creation script with the confirmed title and labels:
+Run the creation script with the confirmed title:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/create-pr.sh" "<confirmed-title>" "PR_BODY.md" "<label1>,<label2>"
+bash "${CLAUDE_SKILL_DIR}/scripts/create-pr.sh" "<confirmed-title>" "PR_BODY.md"
 ```
 
 After creation, display the PR URL.

@@ -1,6 +1,10 @@
 spring:
   application:
     name: gikipedia.server
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   session:
     store-type: redis
     timeout: 30d
@@ -26,6 +30,49 @@ spring:
       allowed-origins:
         - http://localhost:3000
         - http://localhost:3001
+  cloud:
+    cloudflare:
+      bucket: ${R2_BUCKET:}
+      endpoint: ${R2_ENDPOINT:}
+      access-key: ${R2_ACCESS_KEY_ID:}
+      secret-key: ${R2_SECRET_ACCESS_KEY:}
+      public-url: ${R2_PUBLIC_URL:}
+  data:
+    mongodb:
+      # ArticleMongoEntity.documentId의 @Indexed(unique = true)를 실제 인덱스로 만들려면 필요하다
+      # (Spring Data MongoDB는 기본적으로 자동 인덱스 생성을 꺼둔다).
+      auto-index-creation: true
+  modulith:
+    events:
+      # 이벤트 처리(리스너)가 실패하거나 앱이 죽어도, 재시작 시 미완료 발행 기록을 자동으로 재발행한다.
+      republish-outstanding-events-on-restart: true
+      # 완료된 발행 기록은 즉시 삭제한다 — article_histories가 이미 이력/감사 용도이므로, 이 테이블은
+      # 순수 "미완료 작업 대기열" 용도로만 쓰고 무한정 쌓이지 않게 한다.
+      completion-mode: delete
+
+app:
+  cache:
+    article-revision:
+      max-entries: ${ARTICLE_REVISION_CACHE_MAX_ENTRIES:10000}
+      ttl-hours: ${ARTICLE_REVISION_CACHE_TTL_HOURS:6}
+
+collaboration:
+  crdt-ttl-hours: ${COLLABORATION_CRDT_TTL_HOURS:6}
+  leave-debounce-seconds: ${COLLABORATION_LEAVE_DEBOUNCE_SECONDS:20}
+
+article:
+  snapshot:
+    interval: ${ARTICLE_SNAPSHOT_INTERVAL:10}
+  history:
+    compaction:
+      # 원본 히스토리 row를 삭제하는 파괴적 배치라, 문제 생기면 재배포만으로 끌 수 있도록 플래그로 둔다.
+      enabled: ${ARTICLE_HISTORY_COMPACTION_ENABLED:true}
+  read:
+    # redis-mongo: Redis→Mongo 순으로 조회(신규 경로). mysql: 기존처럼 MySQL 직접 조회.
+    # 문제 생길 때 재배포만으로 되돌릴 수 있도록 플래그로 둔다.
+    source: ${ARTICLE_READ_SOURCE:redis-mongo}
+  cache:
+    ttl-minutes: ${ARTICLE_CACHE_TTL_MINUTES:60}
 
 sdk:
   logging:
