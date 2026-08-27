@@ -1,3 +1,6 @@
+# 이 파일은 템플릿입니다. 로컬 개발 시 이 파일을 application.yaml로 복사해 사용하세요.
+# (application.yaml은 .gitignore에 등록되어 있으며, CD 파이프라인은 배포 시점에
+#  GitHub Secrets에 저장된 전문으로 이 경로의 application.yaml을 덮어씁니다.)
 spring:
   application:
     name: gikipedia.server
