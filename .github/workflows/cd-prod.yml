@@ -1,0 +1,72 @@
+name: CD Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.2
+        env:
+          APPLICATION_YAML: ${{ secrets.PROD_APPLICATION_YAML }}
+        with:
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          port: ${{ secrets.PROD_SSH_PORT }}
+          envs: APPLICATION_YAML
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${{ secrets.PROD_APP_DIR }}"
+            REPO_URL="${{ github.server_url }}/${{ github.repository }}.git"
+            BRANCH="main"
+
+            if [ -d "${APP_DIR}/.git" ]; then
+              cd "${APP_DIR}"
+              git fetch origin "${BRANCH}"
+              git checkout "${BRANCH}"
+              git reset --hard "origin/${BRANCH}"
+            else
+              git clone --branch "${BRANCH}" "${REPO_URL}" "${APP_DIR}"
+              cd "${APP_DIR}"
+            fi
+
+            printf '%s' "${APPLICATION_YAML}" > src/main/resources/application.yaml
+
+            ./mill assembly
+
+            sudo systemctl restart gikipedia-server
+            sudo systemctl status gikipedia-server --no-pager
+
+      - name: Notify Discord
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          status: ${{ job.status }}
+          nofail: false
+          nocontext: true
+          title: "Gikipedia Server CD (Production)"
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          username: Gikipedia CD
+          description: |
+            Push · `main` · `${{ github.sha }}` · by **${{ github.actor }}**
+            ─────────────────────────────
+            **Result:** `${{ job.status }}`
+            **Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
