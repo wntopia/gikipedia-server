@@ -49,6 +49,8 @@ jobs:
 
             printf '%s' "${APPLICATION_YAML}" > src/main/resources/application.yaml
 
+            docker compose up -d
+
             ./mill assembly
 
             sudo systemctl restart gikipedia-server-stage
