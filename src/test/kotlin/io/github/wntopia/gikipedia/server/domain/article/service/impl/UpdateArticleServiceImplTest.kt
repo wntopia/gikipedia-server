@@ -8,7 +8,7 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheSto
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -29,14 +29,14 @@ import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
 /**
- * 수정 시 행 잠금 조회(findByIdForUpdate)를 쓰는지, R2 업로드가 잠금 전에 끝나는지 검증.
+ * 수정 시 행 잠금 조회(findByIdForUpdate)를 쓰는지, SeaweedFS 업로드가 잠금 전에 끝나는지 검증.
  * 행 잠금+기록+캐시 시퀀스 자체는 [ArticleUpdateTransactionHelper]의 실제 인스턴스를 그대로 통해서
  * 검증한다(mock으로 대체하지 않음) — 그래야 기존 검증(findByIdForUpdate 호출, 캐시 반영 등)이 그대로 유효하다.
  * 실제 잠금 동작(동시 트랜잭션 직렬화) 자체는 단위 테스트로 검증할 수 없어 통합 테스트 영역이다.
  */
 class UpdateArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
-    private val r2Uploader = mock<R2Uploader>()
+    private val seaweedUploader = mock<SeaweedUploader>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val authenticationReader = mock<AuthenticationReader>()
     private val articleCacheStore = mock<ArticleCacheStore>()
@@ -48,7 +48,7 @@ class UpdateArticleServiceImplTest {
 
     private val service =
         UpdateArticleServiceImpl(
-            r2Uploader,
+            seaweedUploader,
             authenticationReader,
             transactionTemplate,
             articleUpdateTransactionHelper,
@@ -106,7 +106,7 @@ class UpdateArticleServiceImplTest {
         val response = service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
 
         assertThat(response.imageUrl).isEqualTo("old.png")
-        verify(r2Uploader, never()).upload(any(), any())
+        verify(seaweedUploader, never()).upload(any(), any())
     }
 
     @Test

@@ -5,7 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -22,11 +22,12 @@ import java.time.Instant
 /** 생성 시에도 Mongo 동기화 이벤트(baseline revision=1)를 발행하고 캐시를 채우는지 검증. */
 class CreateArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
-    private val r2Uploader = mock<R2Uploader>()
+    private val seaweedUploader = mock<SeaweedUploader>()
     private val eventPublisher = mock<ApplicationEventPublisher>()
     private val articleCacheStore = mock<ArticleCacheStore>()
 
-    private val service = CreateArticleServiceImpl(articleRepository, r2Uploader, eventPublisher, articleCacheStore)
+    private val service =
+        CreateArticleServiceImpl(articleRepository, seaweedUploader, eventPublisher, articleCacheStore)
 
     @BeforeEach
     fun setUp() {

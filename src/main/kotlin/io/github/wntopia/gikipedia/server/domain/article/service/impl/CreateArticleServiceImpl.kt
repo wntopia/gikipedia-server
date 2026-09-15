@@ -8,7 +8,7 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_K
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,13 +16,19 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class CreateArticleServiceImpl(
     private val articleRepository: ArticleRepository,
-    private val r2Uploader: R2Uploader,
+    private val seaweedUploader: SeaweedUploader,
     private val eventPublisher: ApplicationEventPublisher,
     private val articleCacheStore: ArticleCacheStore,
 ) : CreateArticleService {
     @Transactional
     override fun execute(reqDto: CreateArticleReqDto): ArticleResDto {
-        val imageUrl = reqDto.image?.takeIf { !it.isEmpty }?.let { r2Uploader.upload(it, ARTICLE_IMAGE_KEY_PREFIX) }
+        val imageUrl =
+            reqDto.image?.takeIf { !it.isEmpty }?.let {
+                seaweedUploader.upload(
+                    it,
+                    ARTICLE_IMAGE_KEY_PREFIX,
+                )
+            }
         val saved = articleRepository.save(ArticleJpaEntity(reqDto.title, reqDto.content, imageUrl))
 
         // article_histories의 리비전 체계("리비전 1 = 생성 시점 그대로")와 맞춰, Mongo 뷰도 생성 시점에

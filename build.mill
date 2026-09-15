@@ -46,8 +46,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
 
   def bomMvnDeps: T[Seq[Dep]] = Seq(
     mvn"org.springframework.boot:spring-boot-dependencies:4.1.1",
-    mvn"org.springframework.modulith:spring-modulith-bom:2.1.0",
-    mvn"software.amazon.awssdk:bom:2.54.2"
+    mvn"org.springframework.modulith:spring-modulith-bom:2.1.0"
   )
 
   def mvnDeps: T[Seq[Dep]] = Seq(
@@ -70,9 +69,7 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
     mvn"com.github.themoment-team:the-sdk:1.5",
     mvn"io.github.openfeign.querydsl:querydsl-jpa:7.6",
     mvn"io.github.java-diff-utils:java-diff-utils:4.17",
-    mvn"com.github.ben-manes.caffeine:caffeine",
-    mvn"software.amazon.awssdk:s3",
-    mvn"software.amazon.awssdk:url-connection-client"
+    mvn"com.github.ben-manes.caffeine:caffeine"
   )
 
   def runMvnDeps: T[Seq[Dep]] = Seq(mvn"com.mysql:mysql-connector-j")
