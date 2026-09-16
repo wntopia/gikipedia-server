@@ -6,7 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_K
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -16,7 +16,7 @@ import team.themoment.sdk.exception.ExpectedException
 /**
  * 실시간 공동편집 중에도 대표 이미지만 바꿀 수 있는 별도 엔드포인트용 서비스.
  *
- * `UpdateArticleServiceImpl`과 마찬가지로 R2 업로드(DB와 무관한 외부 I/O)는 트랜잭션 밖에서 끝내고, 그
+ * `UpdateArticleServiceImpl`과 마찬가지로 SeaweedFS 업로드(DB와 무관한 외부 I/O)는 트랜잭션 밖에서 끝내고, 그
  * 뒤의 행 잠금+DB 쓰기만 [ArticleUpdateTransactionHelper]를 통해 [TransactionTemplate]으로 명시적으로
  * 묶는다. content는 건드리지 않는다. content 변화가 없으므로 리비전은 새로 만들지 않고 이미지가 반영된
  * [io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent]만 재발행한다 — 그 이벤트를
@@ -25,7 +25,7 @@ import team.themoment.sdk.exception.ExpectedException
  */
 @Service
 class UpdateArticleImageServiceImpl(
-    private val r2Uploader: R2Uploader,
+    private val seaweedUploader: SeaweedUploader,
     private val authenticationReader: AuthenticationReader,
     private val transactionTemplate: TransactionTemplate,
     private val articleUpdateTransactionHelper: ArticleUpdateTransactionHelper,
@@ -38,7 +38,7 @@ class UpdateArticleImageServiceImpl(
         if (reqDto.image.isEmpty) {
             throw ExpectedException("이미지는 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
-        val uploadedImageUrl = r2Uploader.upload(reqDto.image, ARTICLE_IMAGE_KEY_PREFIX)
+        val uploadedImageUrl = seaweedUploader.upload(reqDto.image, ARTICLE_IMAGE_KEY_PREFIX)
 
         val (response, _) =
             requireNotNull(

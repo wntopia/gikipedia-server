@@ -1,0 +1,40 @@
+services:
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:3.85
+    command: master -ip=seaweedfs-master -mdir=/data
+    restart: unless-stopped
+    ports:
+      - "9333:9333"
+    volumes:
+      - seaweedfs-master-data:/data
+
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:3.85
+    # 컨테이너 내부 포트는 8080이지만, 애플리케이션(gikipedia-server)이 같은 호스트에서 8080을 쓰므로
+    # 호스트 쪽은 18080으로 매핑해 충돌을 피한다. filer가 volume을 찾는 건 내부 네트워크(9333)로 하므로
+    # 이 매핑은 순수히 사람이 볼륨 서버 상태를 직접 확인할 때만 쓰인다.
+    command: volume -mserver=seaweedfs-master:9333 -ip=seaweedfs-volume -dir=/data -port=8080
+    restart: unless-stopped
+    ports:
+      - "18080:8080"
+    volumes:
+      - seaweedfs-volume-data:/data
+    depends_on:
+      - seaweedfs-master
+
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:3.85
+    command: filer -master=seaweedfs-master:9333 -ip=seaweedfs-filer -port=8888
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    volumes:
+      - seaweedfs-filer-data:/data
+    depends_on:
+      - seaweedfs-master
+      - seaweedfs-volume
+
+volumes:
+  seaweedfs-master-data:
+  seaweedfs-volume-data:
+  seaweedfs-filer-data:
