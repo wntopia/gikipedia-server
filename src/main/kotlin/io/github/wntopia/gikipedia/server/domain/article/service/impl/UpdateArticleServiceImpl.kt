@@ -6,20 +6,20 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_K
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
 
 @Service
 class UpdateArticleServiceImpl(
-    private val r2Uploader: R2Uploader,
+    private val seaweedUploader: SeaweedUploader,
     private val authenticationReader: AuthenticationReader,
     private val transactionTemplate: TransactionTemplate,
     private val articleUpdateTransactionHelper: ArticleUpdateTransactionHelper,
 ) : UpdateArticleService {
     /**
-     * R2 업로드(블로킹 네트워크 호출)는 DB와 무관하므로 트랜잭션 밖에서 끝내둔다. `@Transactional`로 메서드
+     * SeaweedFS 업로드(블로킹 네트워크 호출)는 DB와 무관하므로 트랜잭션 밖에서 끝내둔다. `@Transactional`로 메서드
      * 전체를 감쌌다면 DB 커넥션 획득 시점이 Hibernate의 지연 획득 설정에 암묵적으로 의존하게 되는데다, 업로드는
      * 실패해도 롤백 대상이 아니라 트랜잭션 안에 있을 실익이 없다. 아래 [TransactionTemplate] 블록만 명시적으로
      * DB 쓰기 트랜잭션으로 묶는다. 편집자 조회(인증 실패 시 401)는 [ArticleUpdateTransactionHelper]가 행 잠금
@@ -32,7 +32,7 @@ class UpdateArticleServiceImpl(
     ): ArticleResDto {
         val uploadedImageUrl =
             reqDto.image?.takeIf { !it.isEmpty }?.let {
-                r2Uploader.upload(
+                seaweedUploader.upload(
                     it,
                     ARTICLE_IMAGE_KEY_PREFIX,
                 )
