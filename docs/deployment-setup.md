@@ -104,9 +104,10 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server
-ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server/out/package/assembly.dest/out.jar
+ExecStart=/home/ubuntu/gikipedia-server/out/launcher.dest/run
 Restart=on-failure
 RestartSec=5
+SuccessExitStatus=143
 Environment=SPRING_PROFILES_ACTIVE=prod
 
 [Install]
@@ -126,9 +127,10 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server-stage
-ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server-stage/out/package/assembly.dest/out.jar
+ExecStart=/home/ubuntu/gikipedia-server-stage/out/launcher.dest/run
 Restart=on-failure
 RestartSec=5
+SuccessExitStatus=143
 Environment=SPRING_PROFILES_ACTIVE=stage
 
 [Install]
@@ -144,13 +146,17 @@ sudo systemctl enable gikipedia-server
 sudo systemctl enable gikipedia-server-stage
 ```
 
-## 10. mill 산출물 경로 확인
+## 10. mill 실행 스크립트 확인
 
-로컬에서 먼저 빌드해보고 실제 jar 경로를 확인한 뒤, 7·8번의 `ExecStart` 경로를 맞춘다.
+`./mill assembly`로 만든 fat jar는 Spring Boot 모듈별 `META-INF/spring/*.imports`·`spring.factories`가
+하나만 남고 덮어써져 auto-configuration이 동작하지 않는다(JPA Repository·Tomcat 등이 등록되지 않아 기동 실패).
+그래서 의존성 jar를 classpath로 그대로 넘기는 `./mill launcher` 실행 스크립트를 사용한다.
+스크립트는 PATH의 `java`(Java 25)로 실행되고, 서버의 coursier 캐시와 `out/compile.dest`를 참조하므로
+배포 디렉터리에서 `./mill clean`을 하면 다음 배포 전까지 서비스가 뜨지 않는다.
 
 ```
-./mill assembly
-find out -name "*.jar"
+./mill launcher
+ls out/launcher.dest/run
 ```
 
 ## 11. GitHub Secrets 등록 (gh CLI 사용 시)

@@ -67,6 +67,16 @@ Secret에 넣는 `application.yaml` 전문에는 아래 값들을 실제 값으�
 > 운영에서 실제 DB에 연결하려면 `PROD_APPLICATION_YAML` / `STAGE_APPLICATION_YAML` 전문에
 > 해당 접속 정보를 직접 추가해야 한다.
 
+## 기동 확인 (Repository Variables)
+
+배포 스크립트는 `systemctl restart` 후 앱 포트가 HTTP 응답을 줄 때까지 최대 180초 기다린다.
+그 사이 프로세스가 종료되거나 재시작되면, 또는 시간 안에 응답이 없으면 배포를 실패로 처리한다.
+Secret이 아니라 Settings → Secrets and variables → Actions → **Variables** 탭에 등록한다.
+
+| Variable | 설명 | 기본값 |
+|---|---|---|
+| `STAGE_APP_PORT` | 스테이지 앱이 listen하는 포트 (`server.port`) | `8080` |
+
 ## Discord 알림 (공통, 기존 CI와 동일 Secret 재사용)
 
 | Secret | 설명 |
