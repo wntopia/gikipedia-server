@@ -51,7 +51,7 @@ jobs:
 
             docker compose up -d
 
-            ./mill assembly
+            ./mill launcher
 
             sudo systemctl restart gikipedia-server-stage
 
