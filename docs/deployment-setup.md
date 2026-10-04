@@ -104,7 +104,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server
-ExecStart=/home/ubuntu/gikipedia-server/out/launcher.dest/run
+ExecStart=/bin/sh /home/ubuntu/gikipedia-server/out/launcher.dest/run
 Restart=on-failure
 RestartSec=5
 SuccessExitStatus=143
@@ -127,7 +127,7 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server-stage
-ExecStart=/home/ubuntu/gikipedia-server-stage/out/launcher.dest/run
+ExecStart=/bin/sh /home/ubuntu/gikipedia-server-stage/out/launcher.dest/run
 Restart=on-failure
 RestartSec=5
 SuccessExitStatus=143
@@ -151,6 +151,7 @@ sudo systemctl enable gikipedia-server-stage
 `./mill assembly`로 만든 fat jar는 Spring Boot 모듈별 `META-INF/spring/*.imports`·`spring.factories`가
 하나만 남고 덮어써져 auto-configuration이 동작하지 않는다(JPA Repository·Tomcat 등이 등록되지 않아 기동 실패).
 그래서 의존성 jar를 classpath로 그대로 넘기는 `./mill launcher` 실행 스크립트를 사용한다.
+스크립트에 shebang이 없어 systemd가 직접 exec하면 `Exec format error`가 나므로 `ExecStart`에서 `/bin/sh`로 실행한다.
 스크립트는 PATH의 `java`(Java 25)로 실행되고, 서버의 coursier 캐시와 `out/compile.dest`를 참조하므로
 배포 디렉터리에서 `./mill clean`을 하면 다음 배포 전까지 서비스가 뜨지 않는다.
 
