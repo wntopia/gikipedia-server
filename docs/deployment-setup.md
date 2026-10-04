@@ -104,9 +104,10 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server
-ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server/out/package/assembly.dest/out.jar
+ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server/out/assembly.dest/out.jar
 Restart=on-failure
 RestartSec=5
+SuccessExitStatus=143
 Environment=SPRING_PROFILES_ACTIVE=prod
 
 [Install]
@@ -126,9 +127,10 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/home/ubuntu/gikipedia-server-stage
-ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server-stage/out/package/assembly.dest/out.jar
+ExecStart=/usr/bin/java -jar /home/ubuntu/gikipedia-server-stage/out/assembly.dest/out.jar
 Restart=on-failure
 RestartSec=5
+SuccessExitStatus=143
 Environment=SPRING_PROFILES_ACTIVE=stage
 
 [Install]
