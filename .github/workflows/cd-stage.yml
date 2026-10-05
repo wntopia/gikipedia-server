@@ -70,6 +70,7 @@ jobs:
                 || [ "$(systemctl show -p NRestarts --value "${SERVICE}")" != "${BASE_RESTARTS}" ]; then
                 echo "::error::${SERVICE} 기동 중 프로세스가 종료되었습니다."
                 sudo systemctl status gikipedia-server-stage --no-pager || true
+                sudo journalctl -u gikipedia-server-stage -n 150 --no-pager | grep -vE "\]:\s+at " || true
                 exit 1
               fi
 
@@ -82,6 +83,7 @@ jobs:
 
             echo "::error::${SERVICE}가 ${STARTUP_TIMEOUT_SECONDS}초 안에 port ${APP_PORT}에서 응답하지 않았습니다."
             sudo systemctl status gikipedia-server-stage --no-pager || true
+            sudo journalctl -u gikipedia-server-stage -n 150 --no-pager | grep -vE "\]:\s+at " || true
             exit 1
 
       - name: Notify Discord
