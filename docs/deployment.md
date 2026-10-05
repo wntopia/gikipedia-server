@@ -61,7 +61,7 @@ Secret에 넣는 `application.yaml` 전문에는 아래 값들을 실제 값으�
 | `ARTICLE_READ_SOURCE` | 아티클 조회 소스 (`redis-mongo` / `mysql`, 기본값 있음) |
 | `ARTICLE_CACHE_TTL_MINUTES` | 아티클 캐시 TTL (기본값 있음) |
 
-> **참고:** MongoDB / Redis / MySQL 연결 정보(`spring.data.mongodb.uri`,
+> **참고:** MongoDB / Redis / MySQL 연결 정보(`spring.mongodb.uri`,
 > `spring.data.redis.host`/`port`, `spring.datasource.url`/`username`/`password` 등)는
 > 현재 `application.yaml.example`에 플레이스홀더로 선언되어 있지 않다.
 > 운영에서 실제 DB에 연결하려면 `PROD_APPLICATION_YAML` / `STAGE_APPLICATION_YAML` 전문에
@@ -84,8 +84,16 @@ MySQL·MongoDB·Redis는 `docker-compose.yml`로 앱과 같은 호스트에 뜨�
 
 - `spring.datasource.username`: `gikipedia`
 - `spring.datasource.password`: `*_MYSQL_PASSWORD`
-- `spring.data.mongodb.uri`: `mongodb://gikipedia:<*_MONGO_PASSWORD>@localhost:27017/gikipedia?authSource=admin`
+- `spring.mongodb.uri`: `"mongodb://gikipedia:<*_MONGO_PASSWORD>@localhost:27017/gikipedia?authSource=admin"`
+  - Spring Boot 4부터 `spring.data.mongodb.uri`가 아니라 `spring.mongodb.uri`이다(`auto-index-creation`은 `spring.data.mongodb` 그대로).
+  - 따옴표로 감싸고, 비밀번호의 `@ : / % ? #`는 URL 인코딩한다.
 - `spring.data.redis.password`: `*_REDIS_PASSWORD`
+
+yaml에 아래 값도 반드시 있어야 앱이 기동된다.
+
+- `spring.jpa.hibernate.ddl-auto: update`: 마이그레이션 도구가 없으므로 빈 DB에 테이블(`event_publication` 등)을 만든다.
+- `spring.security.oauth2.client.registration.datagsm.client-id` / `client-secret`: 비어 있으면 DataGSM SDK가 기동을 거부한다.
+- `seaweedfs.filer-url` / `seaweedfs.public-url`: 최상위 `seaweedfs` 키다(`spring.cloud.*` 아님).
 
 > MySQL·MongoDB의 비밀번호는 볼륨이 처음 생성될 때만 적용된다. 이후 Secret을 바꾸려면 DB 안에서 비밀번호를 직접 변경하거나 볼륨을 지우고 다시 만들어야 한다.
 
