@@ -24,12 +24,16 @@ jobs:
         uses: appleboy/ssh-action@v1.2.2
         env:
           APPLICATION_YAML: ${{ secrets.STAGE_APPLICATION_YAML }}
+          MYSQL_PASSWORD: ${{ secrets.STAGE_MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.STAGE_MYSQL_ROOT_PASSWORD }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.STAGE_MONGO_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.STAGE_REDIS_PASSWORD }}
         with:
           host: ${{ secrets.STAGE_SSH_HOST }}
           username: ${{ secrets.STAGE_SSH_USERNAME }}
           key: ${{ secrets.STAGE_SSH_KEY }}
           port: ${{ secrets.STAGE_SSH_PORT }}
-          envs: APPLICATION_YAML
+          envs: APPLICATION_YAML,MYSQL_PASSWORD,MYSQL_ROOT_PASSWORD,MONGO_INITDB_ROOT_PASSWORD,REDIS_PASSWORD
           script: |
             set -euo pipefail
 
@@ -49,7 +53,15 @@ jobs:
 
             printf '%s' "${APPLICATION_YAML}" > src/main/resources/application.yaml
 
-            docker compose up -d
+            # docker compose가 읽는 DB 비밀번호(.env, gitignore 대상)를 Secrets로 생성한다.
+            (
+              umask 077
+              for KEY in MYSQL_PASSWORD MYSQL_ROOT_PASSWORD MONGO_INITDB_ROOT_PASSWORD REDIS_PASSWORD; do
+                printf "%s='%s'\n" "${KEY}" "${!KEY}"
+              done > .env
+            )
+
+            docker compose up -d --wait
 
             ./mill launcher
 

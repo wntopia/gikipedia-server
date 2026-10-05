@@ -67,6 +67,28 @@ Secret에 넣는 `application.yaml` 전문에는 아래 값들을 실제 값으�
 > 운영에서 실제 DB에 연결하려면 `PROD_APPLICATION_YAML` / `STAGE_APPLICATION_YAML` 전문에
 > 해당 접속 정보를 직접 추가해야 한다.
 
+## DB 비밀번호 (docker compose)
+
+MySQL·MongoDB·Redis는 `docker-compose.yml`로 앱과 같은 호스트에 뜨며, 포트는 `127.0.0.1`에만 바인딩된다.
+비밀번호는 기본값이 없고, CD가 아래 Secret으로 배포 디렉터리에 `.env`(권한 600, gitignore 대상)를 만들어 주입한다.
+값에 작은따옴표(`'`)는 쓰지 않는다. 계정명·DB명은 기본값 `gikipedia`를 쓴다.
+
+| Secret | 설명 |
+|---|---|
+| `STAGE_MYSQL_PASSWORD` / `PROD_MYSQL_PASSWORD` | MySQL `gikipedia` 계정 비밀번호 |
+| `STAGE_MYSQL_ROOT_PASSWORD` / `PROD_MYSQL_ROOT_PASSWORD` | MySQL root 비밀번호 |
+| `STAGE_MONGO_PASSWORD` / `PROD_MONGO_PASSWORD` | MongoDB root(`gikipedia`) 비밀번호 |
+| `STAGE_REDIS_PASSWORD` / `PROD_REDIS_PASSWORD` | Redis `requirepass` |
+
+`*_APPLICATION_YAML`의 접속 정보도 같은 값이어야 한다.
+
+- `spring.datasource.username`: `gikipedia`
+- `spring.datasource.password`: `*_MYSQL_PASSWORD`
+- `spring.data.mongodb.uri`: `mongodb://gikipedia:<*_MONGO_PASSWORD>@localhost:27017/gikipedia?authSource=admin`
+- `spring.data.redis.password`: `*_REDIS_PASSWORD`
+
+> MySQL·MongoDB의 비밀번호는 볼륨이 처음 생성될 때만 적용된다. 이후 Secret을 바꾸려면 DB 안에서 비밀번호를 직접 변경하거나 볼륨을 지우고 다시 만들어야 한다.
+
 ## 기동 확인 (Repository Variables)
 
 배포 스크립트는 `systemctl restart` 후 앱 포트가 HTTP 응답을 줄 때까지 최대 180초 기다린다.
