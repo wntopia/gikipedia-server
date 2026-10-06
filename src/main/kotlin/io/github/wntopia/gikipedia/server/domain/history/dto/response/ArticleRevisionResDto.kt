@@ -1,5 +1,6 @@
 package io.github.wntopia.gikipedia.server.domain.history.dto.response
 
+import io.swagger.v3.oas.annotations.media.Schema
 import java.io.Serializable
 import java.time.Instant
 
@@ -10,12 +11,19 @@ import java.time.Instant
  * 싣는다.
  */
 data class ArticleRevisionResDto(
+    @field:Schema(description = "문서 ID", example = "1")
     val articleId: Long,
+    @field:Schema(description = "리비전 번호", example = "3")
     val revision: Int,
+    @field:Schema(description = "문서 제목 (항상 현재 제목)")
     val title: String,
+    @field:Schema(description = "해당 리비전 시점의 본문")
     val content: String,
+    @field:Schema(description = "해당 리비전의 편집자 (\"학번 이름\")", example = "2412 홍길동")
     val editor: String,
+    @field:Schema(description = "해당 리비전의 편집 시각 (ISO-8601, UTC)")
     val editedAt: Instant?,
     /** 이 리비전이 문서의 현재 최신인지 여부. 최신 리비전은 이후 수정으로 바뀔 수 있어 캐시하지 않는다(캐시 unless 판정용). */
+    @field:Schema(description = "이 리비전이 현재 최신 버전인지 여부")
     val latest: Boolean,
 ) : Serializable
