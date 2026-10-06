@@ -33,6 +33,7 @@ jobs:
           username: ${{ secrets.STAGE_SSH_USERNAME }}
           key: ${{ secrets.STAGE_SSH_KEY }}
           port: ${{ secrets.STAGE_SSH_PORT }}
+          command_timeout: 20m
           envs: APPLICATION_YAML,MYSQL_PASSWORD,MYSQL_ROOT_PASSWORD,MONGO_INITDB_ROOT_PASSWORD,REDIS_PASSWORD
           script: |
             set -euo pipefail
@@ -63,7 +64,8 @@ jobs:
 
             docker compose up -d --wait
 
-            ./mill launcher
+            # 빌드가 끝나면 mill 데몬이 남지 않도록 --no-daemon으로 실행하고, 빌드 JVM 힙에 상한을 둔다.
+            JAVA_TOOL_OPTIONS="-Xmx1536m" ./mill --no-daemon launcher
 
             sudo systemctl restart gikipedia-server-stage
 
