@@ -24,6 +24,8 @@ services:
   mongodb:
     image: mongo:7
     restart: unless-stopped
+    # WiredTiger 캐시 기본값은 (RAM - 1GB)의 50%라 서버 메모리를 크게 잡아먹으므로 상한을 둔다.
+    command: ["--wiredTigerCacheSizeGB", "0.5"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-gikipedia}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?MONGO_INITDB_ROOT_PASSWORD is required}
