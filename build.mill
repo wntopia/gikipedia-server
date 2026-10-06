@@ -16,6 +16,10 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
   def kotlinVersion = kotlinVer
   def repositories: T[Seq[String]] = super.repositories() ++ Seq("https://jitpack.io")
 
+  // 배포 서버는 스왑 없이 앱·DB·빌드가 메모리를 나눠 쓰므로 앱 힙 상한을 고정한다.
+  // forkArgs는 `mill run`과 배포용 `mill launcher` 스크립트에 그대로 들어간다.
+  def forkArgs: T[Seq[String]] = super.forkArgs() ++ Seq("-Xmx1g")
+
   // kotlin-spring(all-open) + kotlin-jpa(no-arg) 컴파일러 플러그인.
   // Spring이 프록시·인스턴스화하는 클래스(@Configuration, @Service 등)를 open으로,
   // JPA 엔티티에 합성 무인자 생성자를 자동 생성한다.
