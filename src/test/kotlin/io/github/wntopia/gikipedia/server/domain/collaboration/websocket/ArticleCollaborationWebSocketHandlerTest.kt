@@ -261,4 +261,18 @@ class ArticleCollaborationWebSocketHandlerTest {
         assertThat(messagesSentTo(session)).anyMatch { it.type == CollaborationMessage.TYPE_ERROR }
         verify(session, org.mockito.kotlin.never()).close(any<CloseStatus>())
     }
+
+    @Test
+    @DisplayName("접속하면 room의 현재 편집자에 나오고, 나가면 비어 있다")
+    fun exposesCurrentEditorsWhileConnected() {
+        whenever(taskScheduler.schedule(any<Runnable>(), any<Instant>())).thenReturn(mock<ScheduledFuture<*>>())
+        val session = fakeSession("a", 1L, "2412 홍길동")
+
+        handler.afterConnectionEstablished(session)
+        val room = requireNotNull(collaborationRoomRegistry.findIfActive(1L))
+        assertThat(room.currentEditors().map { it.label }).containsExactly("2412 홍길동")
+
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+        assertThat(room.currentEditors()).isEmpty()
+    }
 }

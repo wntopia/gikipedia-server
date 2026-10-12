@@ -63,9 +63,10 @@ class ArticleCollaborationWebSocketHandler(
                     return
                 }
 
-        editorsBySessionId[session.id] = authenticationReader.getEditor(session.attributes)
+        val editor = authenticationReader.getEditor(session.attributes)
+        editorsBySessionId[session.id] = editor
         val decoratedSession = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, BUFFER_SIZE_LIMIT_BYTES)
-        val room = collaborationRoomRegistry.joinOrCreate(articleId, decoratedSession)
+        val room = collaborationRoomRegistry.joinOrCreate(articleId, decoratedSession, editor)
         room.sendTo(session.id, bootstrap)
     }
 

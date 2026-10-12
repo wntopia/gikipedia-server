@@ -28,7 +28,7 @@ class AuthenticationReader {
 
     private fun editorOf(userInfo: DataGsmUserInfoResDto?): EditorIdentity {
         val student = userInfo?.student ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
-        return EditorIdentity(userInfo.id, "${student.studentNumber ?: "?"} ${student.name ?: "?"}")
+        return EditorIdentity(userInfo.id, "${student.studentNumber ?: "?"} ${student.name ?: "?"}", student.name)
     }
 
     /** 로그인한 사용자의 DataGSM 계정 id. 로그인하지 않았거나 계정 id가 없으면 401. */

@@ -4,6 +4,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.LookupArticleTitlesReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleImageReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleEditorsResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.LookupArticleTitlesResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.PopularArticleResDto
@@ -11,6 +12,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.RecentChan
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.LookupArticleTitlesService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleByTitleService
+import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleEditorsService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryPopularArticlesService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryRecentChangesService
@@ -60,6 +62,7 @@ class ArticleController(
     private val queryRecentChangesService: QueryRecentChangesService,
     private val queryPopularArticlesService: QueryPopularArticlesService,
     private val trackArticleViewService: TrackArticleViewService,
+    private val queryArticleEditorsService: QueryArticleEditorsService,
 ) {
     @Operation(
         summary = "문서 생성",
@@ -207,6 +210,20 @@ class ArticleController(
         @Parameter(description = "문서 ID", example = "1") @PathVariable articleId: Long,
         @Parameter(hidden = true) request: HttpServletRequest,
     ): ArticleResDto = withViewCount(queryArticleService.execute(articleId), request)
+
+    @Operation(
+        summary = "문서 현재 편집자 조회",
+        description =
+            "지금 실시간 공동편집 room에 접속해 있는 편집자를 반환한다. 읽기 화면의 \"○○ 편집 중\" 표시에 쓴다. " +
+                "편집 중인 사람이 없거나 공동편집 room이 없는 문서(존재하지 않는 문서 포함)는 오류 없이 " +
+                "`editing=false`의 빈 결과를 반환한다. 로그인 없이 호출할 수 있다. 읽기 전용 구독은 제공하지 않으므로 " +
+                "표시가 필요한 동안 10~30초 간격으로 폴링하면 된다.",
+    )
+    @ApiResponses(value = [ApiResponse(responseCode = "200", description = "조회 성공")])
+    @GetMapping("/{articleId}/editors")
+    fun editors(
+        @Parameter(description = "문서 ID", example = "1") @PathVariable articleId: Long,
+    ): ArticleEditorsResDto = queryArticleEditorsService.execute(articleId)
 
     @Operation(
         summary = "문서 수정",

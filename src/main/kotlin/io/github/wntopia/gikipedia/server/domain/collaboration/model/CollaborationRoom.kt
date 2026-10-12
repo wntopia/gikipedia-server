@@ -19,6 +19,7 @@ class CollaborationRoom(
     private val objectMapper: ObjectMapper,
 ) {
     private val sessions = LinkedHashMap<String, WebSocketSession>()
+    private val editorsBySessionId = LinkedHashMap<String, EditorIdentity>()
 
     /** 가장 최근 `sync` 또는 `save` 메시지가 실어온 plain text — 안전망 저장의 원천. */
     var lastKnownPlainText: String? = null
@@ -31,14 +32,23 @@ class CollaborationRoom(
     private var pendingLeaveSafetyNet: ScheduledFuture<*>? = null
 
     @Synchronized
-    fun join(session: WebSocketSession) {
+    fun join(
+        session: WebSocketSession,
+        editor: EditorIdentity? = null,
+    ) {
         sessions[session.id] = session
+        editor?.let { editorsBySessionId[session.id] = it }
     }
+
+    /** 지금 room에 접속해 있는 편집자들. 같은 사용자가 여러 탭으로 들어와 있어도 한 번만 나온다. */
+    @Synchronized
+    fun currentEditors(): List<EditorIdentity> = editorsBySessionId.values.distinctBy { it.userId ?: it.label }
 
     /** @return 이 호출로 인해 room이 비게 됐는지 여부 */
     @Synchronized
     fun leave(sessionId: String): Boolean {
         sessions.remove(sessionId)
+        editorsBySessionId.remove(sessionId)
         return sessions.isEmpty()
     }
 

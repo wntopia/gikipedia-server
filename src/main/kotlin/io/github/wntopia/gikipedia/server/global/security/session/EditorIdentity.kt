@@ -7,4 +7,6 @@ package io.github.wntopia.gikipedia.server.global.security.session
 data class EditorIdentity(
     val userId: Long?,
     val label: String,
+    /** 화면에 "○○ 편집 중"으로 보여줄 이름(학번 제외). 알 수 없으면 null. */
+    val name: String? = null,
 )
