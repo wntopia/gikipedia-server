@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.hibernate.annotations.Collate
 
 @Entity
 @Table(
@@ -22,7 +23,12 @@ class ArticleJpaEntity(
     @field:JoinColumn(name = "parent_id")
     val parent: ArticleJpaEntity? = null,
 ) : BaseJpaEntity() {
+    /**
+     * 악센트는 구분하고 대소문자·전각/반각은 무시하는 collation. 기본값(`utf8mb4_0900_ai_ci`)은 악센트까지
+     * 무시해 [io.github.wntopia.gikipedia.server.global.text.TitleNormalizer.keyOf]와 판정이 갈린다.
+     */
     @field:Column(name = "title", nullable = false, length = 255)
+    @field:Collate("utf8mb4_0900_as_ci")
     var title: String = title
         protected set
 

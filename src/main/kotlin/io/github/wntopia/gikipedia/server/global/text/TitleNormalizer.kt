@@ -18,8 +18,10 @@ object TitleNormalizer {
         Normalizer.normalize(title, Normalizer.Form.NFC).trim().replace(WHITESPACES, " ")
 
     /**
-     * 제목끼리 같은지 비교할 때 쓰는 키. MySQL 기본 collation이 대소문자를 구분하지 않으므로
-     * DB의 유니크 판정과 같은 기준이 되도록 소문자로 맞춘다.
+     * 제목끼리 같은지 비교할 때 쓰는 키. `articles.title` 컬럼 collation(`utf8mb4_0900_as_ci`)이 대소문자와
+     * 전각/반각은 무시하고 악센트는 구분하므로, DB의 유니크 판정과 같은 기준이 되도록 NFKC(전각 → 반각)로
+     * 정규화한 뒤 소문자로 맞춘다. 원래 표기는 [normalize] 결과로 저장하고, 이 키는 비교에만 쓴다.
      */
-    fun keyOf(title: String): String = normalize(title).lowercase(Locale.ROOT)
+    fun keyOf(title: String): String =
+        Normalizer.normalize(normalize(title), Normalizer.Form.NFKC).lowercase(Locale.ROOT)
 }
