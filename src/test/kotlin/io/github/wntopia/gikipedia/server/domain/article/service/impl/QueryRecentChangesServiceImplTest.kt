@@ -2,6 +2,8 @@ package io.github.wntopia.gikipedia.server.domain.article.service.impl
 
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRecentView
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleLatestEditorView
 import io.github.wntopia.gikipedia.server.domain.user.entity.ContributionJpaEntity
 import io.github.wntopia.gikipedia.server.domain.user.entity.ContributionType
 import io.github.wntopia.gikipedia.server.domain.user.entity.UserJpaEntity
@@ -27,11 +29,18 @@ class QueryRecentChangesServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
     private val contributionRepository = mock<ContributionRepository>()
     private val userRepository = mock<UserRepository>()
+    private val articleHistoryRepository = mock<ArticleHistoryRepository>()
 
     // KST 2026-10-13 01:00 → 오늘의 시작은 UTC 2026-10-12 15:00
     private val clock = Clock.fixed(Instant.parse("2026-10-12T16:00:00Z"), ZoneOffset.UTC)
     private val service =
-        QueryRecentChangesServiceImpl(articleRepository, contributionRepository, userRepository, clock)
+        QueryRecentChangesServiceImpl(
+            articleRepository,
+            contributionRepository,
+            userRepository,
+            articleHistoryRepository,
+            clock,
+        )
     private val kstMidnight = Instant.parse("2026-10-12T15:00:00Z")
 
     private fun article(
@@ -113,5 +122,47 @@ class QueryRecentChangesServiceImplTest {
 
         assertThat(result.items).isEmpty()
         verify(contributionRepository, never()).findLatestByArticleIds(any())
+    }
+
+    @Test
+    @DisplayName("기여 원장에 없는 이전 문서는 히스토리의 마지막 편집자로 대신하고, 히스토리도 없으면 신규 생성으로 본다")
+    fun fallsBackToHistoryForLegacyArticles() {
+        whenever(articleRepository.findRecentlyUpdated(any())).thenReturn(
+            PageImpl(listOf(article(1L, "수정된 옛 문서"), article(2L, "손대지 않은 옛 문서")), PageRequest.of(0, 2), 2),
+        )
+        whenever(contributionRepository.findEditStatsSince(any(), any())).thenReturn(emptyList())
+        whenever(contributionRepository.findLatestByArticleIds(any())).thenReturn(emptyList())
+        whenever(userRepository.findByDatagsmUserIdIn(any())).thenReturn(emptyList())
+        whenever(articleHistoryRepository.findLatestEditorsIn(listOf(1L, 2L))).thenReturn(
+            listOf(
+                object : ArticleLatestEditorView {
+                    override fun getArticleId() = 1L
+
+                    override fun getEditor() = "2412 홍길동"
+                },
+            ),
+        )
+
+        val items = service.execute(0, 2).items
+
+        assertThat(items[0].lastEditorName).isEqualTo("홍길동")
+        assertThat(items[0].newlyCreated).isFalse()
+        assertThat(items[1].lastEditorName).isNull()
+        assertThat(items[1].newlyCreated).isTrue()
+    }
+
+    @Test
+    @DisplayName("모든 문서가 원장에 있으면 히스토리를 조회하지 않는다")
+    fun skipsHistoryLookupWhenLedgerCoversAll() {
+        whenever(articleRepository.findRecentlyUpdated(any()))
+            .thenReturn(PageImpl(listOf(article(1L, "문서")), PageRequest.of(0, 1), 1))
+        whenever(contributionRepository.findEditStatsSince(any(), any())).thenReturn(emptyList())
+        whenever(contributionRepository.findLatestByArticleIds(any()))
+            .thenReturn(listOf(ContributionJpaEntity(10L, 1L, ContributionType.EDIT, 2)))
+        whenever(userRepository.findByDatagsmUserIdIn(any())).thenReturn(emptyList())
+
+        service.execute(0, 1)
+
+        verify(articleHistoryRepository, never()).findLatestEditorsIn(any())
     }
 }

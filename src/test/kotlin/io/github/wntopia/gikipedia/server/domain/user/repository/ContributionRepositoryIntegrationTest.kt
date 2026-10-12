@@ -2,6 +2,8 @@ package io.github.wntopia.gikipedia.server.domain.user.repository
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
+import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
 import io.github.wntopia.gikipedia.server.domain.user.entity.ContributionJpaEntity
 import io.github.wntopia.gikipedia.server.domain.user.entity.ContributionType
 import io.github.wntopia.gikipedia.server.global.config.JpaAuditingConfig
@@ -22,6 +24,9 @@ class ContributionRepositoryIntegrationTest {
 
     @Autowired
     private lateinit var articleRepository: ArticleRepository
+
+    @Autowired
+    private lateinit var historyRepository: ArticleHistoryRepository
 
     @Test
     fun `최근 기여 목록은 문서 제목과 함께 최신 순으로 내려온다`() {
@@ -112,5 +117,17 @@ class ContributionRepositoryIntegrationTest {
         assertThat(ids.indexOf(second.id)).isLessThan(ids.indexOf(first.id))
         assertThat(page.totalElements).isGreaterThanOrEqualTo(2)
         assertThat(articleRepository.findRecentlyUpdated(PageRequest.of(0, 1)).hasNext()).isTrue()
+    }
+
+    @Test
+    fun `문서별 최신 리비전의 편집자 라벨을 가져온다`() {
+        val article = articleRepository.saveAndFlush(ArticleJpaEntity(title = "히스토리 문서", content = "a"))
+        historyRepository.save(ArticleHistoryJpaEntity(article, 1, "2411 김철수", "d1"))
+        historyRepository.save(ArticleHistoryJpaEntity(article, 2, "2412 홍길동", "d2"))
+        historyRepository.flush()
+
+        val latest = historyRepository.findLatestEditorsIn(listOf(requireNotNull(article.id)))
+
+        assertThat(latest.map { it.getEditor() }).containsExactly("2412 홍길동")
     }
 }
