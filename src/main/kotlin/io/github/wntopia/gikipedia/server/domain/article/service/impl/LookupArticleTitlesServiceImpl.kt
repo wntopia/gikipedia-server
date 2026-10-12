@@ -18,7 +18,8 @@ class LookupArticleTitlesServiceImpl(
         // 문서도 같은 제목의 요청에 연결된다.
         val normalizedTitles =
             (reqDto.titles.map(TitleNormalizer::normalize) + reqDto.titles)
-                .filter { it.isNotBlank() }
+                // 컬럼 길이를 넘는 제목은 존재할 수 없으므로 조회하지 않는다(긴 입력이 그대로 IN 절에 들어가지 않도록).
+                .filter { it.isNotBlank() && it.length <= TitleNormalizer.MAX_LENGTH }
                 .distinct()
         val idByKey =
             if (normalizedTitles.isEmpty()) {

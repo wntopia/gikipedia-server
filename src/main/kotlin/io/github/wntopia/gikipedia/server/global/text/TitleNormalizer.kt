@@ -9,6 +9,9 @@ import java.util.Locale
  * 앞뒤 공백 제거 → NFC 정규화(조합형/분리형 한글 통일) → 연속 공백을 한 칸으로 축소.
  */
 object TitleNormalizer {
+    /** 저장할 수 있는 제목의 최대 길이(`articles.title` 컬럼 길이). 이보다 긴 제목의 문서는 존재할 수 없다. */
+    const val MAX_LENGTH = 255
+
     private val WHITESPACES = Regex("\\s+")
 
     fun normalize(title: String): String =

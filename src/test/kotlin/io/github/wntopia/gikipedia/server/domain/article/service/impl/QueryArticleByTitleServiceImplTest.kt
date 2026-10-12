@@ -8,7 +8,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.http.HttpStatus
@@ -55,5 +57,15 @@ class QueryArticleByTitleServiceImplTest {
         whenever(queryArticleService.execute(9L)).thenReturn(response)
 
         assertThat(service.execute("기숙사  안내")).isEqualTo(response)
+    }
+
+    @Test
+    @DisplayName("터무니없이 긴 제목은 DB를 조회하지 않고 404")
+    fun rejectsOverlongTitleWithoutQuery() {
+        assertThatThrownBy { service.execute("가".repeat(1000)) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            }
+        verify(articleRepository, never()).findByTitle(any())
     }
 }

@@ -22,13 +22,17 @@ class QueryArticleByTitleServiceImpl(
     private val queryArticleService: QueryArticleService,
 ) : QueryArticleByTitleService {
     override fun execute(title: String): ArticleResDto {
+        // 정규화로 줄어들 공백을 감안해도 이보다 긴 입력은 존재할 수 없는 제목이라, 긴 문자열로 DB를 조회하지 않는다.
+        if (title.length > TitleNormalizer.MAX_LENGTH * 2) throw notFound()
         val normalized = TitleNormalizer.normalize(title)
         val articleId =
             (
                 articleRepository.findByTitle(normalized)
                     ?: title.takeIf { it != normalized }?.let(articleRepository::findByTitle)
             )?.id
-                ?: throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
+                ?: throw notFound()
         return queryArticleService.execute(articleId)
     }
+
+    private fun notFound() = ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
 }

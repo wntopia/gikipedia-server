@@ -68,4 +68,13 @@ class LookupArticleTitlesServiceImplTest {
         assertThat(captor.firstValue).contains("동아리 소개", " 동아리  소개")
         assertThat(result.items.single().id).isEqualTo(4L)
     }
+
+    @Test
+    @DisplayName("컬럼 길이를 넘는 제목은 조회하지 않고 없음으로 답한다")
+    fun skipsTitlesLongerThanColumn() {
+        val result = service.execute(LookupArticleTitlesReqDto(listOf("가".repeat(256))))
+
+        assertThat(result.items.single().exists).isFalse()
+        verify(articleRepository, never()).findIdAndTitleByTitleIn(any())
+    }
 }
