@@ -7,6 +7,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
+import kotlin.concurrent.thread
 
 /**
  * 이 기능 배포 전부터 있던 문서들의 링크 관계를 한 번 채운다. `article_links`가 비어 있을 때만 돌고, 이후 변경은
@@ -21,7 +22,12 @@ class ArticleLinkBackfillRunner(
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /** 기동을 막지 않도록 별도 스레드에서 돌린다 — 문서가 많으면 오래 걸리고, 그동안 서비스는 정상 응답해야 한다. */
     @EventListener(ApplicationReadyEvent::class)
+    fun onApplicationReady() {
+        thread(name = "article-link-backfill", isDaemon = true) { backfillIfEmpty() }
+    }
+
     fun backfillIfEmpty() {
         if (articleLinkRepository.count() > 0) return
 
@@ -30,13 +36,20 @@ class ArticleLinkBackfillRunner(
         while (true) {
             val ids = articleRepository.findIdsAfter(lastId, PageRequest.of(0, CHUNK_SIZE))
             if (ids.isEmpty()) break
-            ids.forEach { id ->
-                articleRepository.findById(id).ifPresent { articleLinkIndexer.reindex(id, it.title, it.content) }
-            }
+            ids.forEach { id -> backfillOne(id) }
             indexed += ids.size
             lastId = ids.last()
         }
         log.info("문서 링크 관계 백필 완료 (articles={})", indexed)
+    }
+
+    /** 한 문서의 실패가 전체 백필을 멈추지 않도록 로그만 남기고 다음 문서로 넘어간다. */
+    private fun backfillOne(id: Long) {
+        try {
+            articleRepository.findById(id).ifPresent { articleLinkIndexer.reindex(id, it.title, it.content) }
+        } catch (e: Exception) {
+            log.warn("문서 링크 백필 실패, 다음 문서로 진행 (articleId={})", id, e)
+        }
     }
 
     companion object {

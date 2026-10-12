@@ -25,7 +25,6 @@ import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import org.springframework.http.MediaType
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
@@ -42,7 +41,6 @@ import team.themoment.sdk.response.CommonApiResponse
     name = "Article",
     description = "문서 생성·조회·수정 API. 모든 응답은 `{ status, code, message, data }` 형태로 감싸지며 실제 값은 `data`에 담긴다.",
 )
-@Validated
 @RestController
 @RequestMapping("/api/v1/articles")
 class ArticleController(
