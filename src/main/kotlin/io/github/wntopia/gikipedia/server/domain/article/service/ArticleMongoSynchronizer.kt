@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.article.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchTextConverter
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Criteria

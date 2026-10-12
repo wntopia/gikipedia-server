@@ -170,7 +170,7 @@ DB와 JVM의 정규식 엔진이 다르므로 한글, 영문 대소문자, 특�
 | 파일 또는 구성 | 변경 |
 | --- | --- |
 | `domain/article/entity/ArticleMongoEntity.kt` | `searchText` 필드 추가 |
-| `domain/article/service/ArticleSearchTextConverter.kt` | 두 위키 문법과 공백 변환 순수 함수 추가 |
+| `domain/article/util/ArticleSearchTextConverter.kt` | 두 위키 문법과 공백 변환 순수 함수 추가 |
 | `domain/article/service/ArticleMongoSynchronizer.kt` | 삽입·갱신에 검색용 본문 포함 |
 | `domain/article/repository/ArticleSearchRepository.kt` | 조건, 순위, 페이지, 건수 조회 추가 |
 | `domain/article/dto/request/SearchArticleReqDto.kt` | 검색어와 페이지 입력·검증 추가 |
@@ -179,9 +179,9 @@ DB와 JVM의 정규식 엔진이 다르므로 한글, 영문 대소문자, 특�
 | `domain/article/dto/response/SnippetSegmentResDto.kt` | 텍스트와 강조 여부 추가 |
 | `domain/article/service/SearchArticleService.kt` | 검색 유스케이스 인터페이스 추가 |
 | `domain/article/service/impl/SearchArticleServiceImpl.kt` | 검색 조합, 발췌, 오류 변환 추가 |
-| `domain/article/service/ArticleSearchSnippetBuilder.kt` | 발췌 경계와 강조 구간 생성 추가 |
+| `domain/article/util/ArticleSearchSnippetBuilder.kt` | 발췌 경계와 강조 구간 생성 추가 |
 | `domain/article/controller/ArticleSearchController.kt` | GET 목록 검색, Swagger, 검색 입력 오류 응답 추가 |
-| `global/util/ArticleSearchPattern.kt` | Mongo·JVM 공용 리터럴 패턴 유틸리티. 저장소와 서비스가 공통 참조 |
+| `domain/article/util/ArticleSearchPattern.kt` | 문서 검색의 Mongo·JVM 리터럴 패턴 유틸리티. 저장소와 발췌 생성기가 참조 |
 | `global/entity/BaseMongoEntity.kt` | 실제 Mongo 조회 시 ID 복원을 위해 `id`에 protected setter 추가 |
 | `global/config/ArticleSearchEnvironment.kt` | 검색 실행 시간 제한 설정 추가 |
 | `src/main/resources/application.yaml.example` | 검색 제한 시간 예시 추가 |
@@ -274,6 +274,20 @@ MySQL 스키마와 문서 히스토리 형식은 바꾸지 않는다. 미작성 
 동일한 검색 필터를 `find`의 `explain("executionStats")`로 확인했을 때 `totalDocsExamined=2000`, `totalKeysExamined=0`, `nReturned=2000`이었다. 이는 검색 조건이 전체 문서를 스캔한다는 근거다. 순위 계산·정렬을 포함한 집계 전체의 실행 계획을 계측한 것은 아니다. 이 결과를 운영 성능 통과 기준으로 사용하지 않는다. 운영 데이터량과 동시 요청 수를 정한 뒤 별도 부하 검증이 필요하다.
 
 
-### 패키지 구조 검토 후 변경
+### 검색 유틸리티의 소유 범위
 
-`ArticleSearchPattern`을 `global/util`로 이동했다. 저장소와 발췌 생성기가 공통 유틸리티를 참조하며, 저장소의 `service` 패키지 참조를 제거했다. 패턴 생성 로직은 변경하지 않았다. 이동 후 발췌 테스트 19개와 실제 MongoDB 테스트 14개, 총 33개를 다시 실행해 통과했다. 실패·오류·건너뜀은 0이다. `./mill spotless --check`도 통과했다.
+세 객체는 상태와 외부 I/O가 없는 유틸리티다. 그러나 순수 함수라는 사실만으로 전역 공용 패키지에 둘 근거가 되지는 않는다. 기존 `domain.article` 아래에 `util`을 두고 다음 규칙의 소유 범위를 유지한다.
+
+| 객체 | 문서 도메인에 두는 이유 |
+| --- | --- |
+| `ArticleSearchTextConverter` | 지원하는 위키 문법과 `search_text` 변환 규칙을 구현한다. |
+| `ArticleSearchSnippetBuilder` | 발췌 160 코드포인트·앞 문맥 40 코드포인트 정책을 구현하고 문서 응답 DTO를 만든다. |
+| `ArticleSearchPattern` | 문서 검색의 ASCII 대소문자 일치 정책을 DB와 발췌에 동일하게 적용한다. 현재 사용 범위는 문서 검색뿐이다. |
+
+저장소와 서비스가 `domain.article.util`을 참조한다. 저장소의 `service` 패키지 참조는 없다. `ArticleSearchPattern`의 기존 `global.util` 배치는 이 기준으로 재검토해 수정했다. 이 이동은 검색 동작을 변경하지 않는다. 서비스 인터페이스나 Spring 빈은 추가하지 않는다.
+
+이동 후 Java 25를 명시해 전체 테스트 179개를 다시 실행했다. 28개 클래스에서 실패·오류·건너뜀은 0이다. `spotless --check`, `assembly`, `git diff --check`도 통과했다. 이동한 세 객체와 두 테스트의 본문은 패키지·import를 제외하면 이동 전과 동일하다.
+
+### CI 포맷 실패
+
+`dcfa4c5`의 CI는 테스트를 통과한 뒤 `ArticleSearchTextConverter`의 포맷 검사에서 실패했다. 로컬 기본 실행과 새 프로세스 실행은 통과했지만, `JAVA_HOME`에 Java 25를 명시한 새 프로세스에서는 같은 실패가 재현됐다. 해당 환경의 포매터가 여러 줄 `if` 조건을 조건별 한 줄로 분리했다. 이 변경 후 기본 환경과 Java 25 환경의 포맷 검사 모두 통과했다. 패키지 배치는 이 실패의 원인이 아니었다. 실행 환경에 따라 검사 결과가 달라진 포매터 내부 원인까지 규명한 것은 아니다.

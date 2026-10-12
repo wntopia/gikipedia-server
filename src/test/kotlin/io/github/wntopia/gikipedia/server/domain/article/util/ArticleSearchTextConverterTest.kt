@@ -1,4 +1,4 @@
-package io.github.wntopia.gikipedia.server.domain.article.service
+package io.github.wntopia.gikipedia.server.domain.article.util
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DynamicTest.dynamicTest

@@ -8,9 +8,9 @@ import com.mongodb.event.CommandListener
 import com.mongodb.event.CommandStartedEvent
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleMongoSynchronizer
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleSearchSnippetBuilder
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchPattern
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchSnippetBuilder
 import io.github.wntopia.gikipedia.server.global.config.ArticleSearchEnvironment
-import io.github.wntopia.gikipedia.server.global.util.ArticleSearchPattern
 import org.assertj.core.api.Assertions.assertThat
 import org.bson.BsonDocument
 import org.bson.Document

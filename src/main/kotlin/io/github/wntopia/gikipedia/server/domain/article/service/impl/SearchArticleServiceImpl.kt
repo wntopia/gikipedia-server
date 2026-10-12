@@ -4,8 +4,8 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.SearchArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleSearchItemResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleSearchResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleSearchRepository
-import io.github.wntopia.gikipedia.server.domain.article.service.ArticleSearchSnippetBuilder
 import io.github.wntopia.gikipedia.server.domain.article.service.SearchArticleService
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchSnippetBuilder
 import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.QueryTimeoutException
 import org.springframework.http.HttpStatus

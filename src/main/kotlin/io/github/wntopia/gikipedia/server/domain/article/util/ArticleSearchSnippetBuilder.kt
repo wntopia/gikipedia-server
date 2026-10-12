@@ -1,7 +1,6 @@
-package io.github.wntopia.gikipedia.server.domain.article.service
+package io.github.wntopia.gikipedia.server.domain.article.util
 
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.SnippetSegmentResDto
-import io.github.wntopia.gikipedia.server.global.util.ArticleSearchPattern
 import java.util.regex.Pattern
 
 object ArticleSearchSnippetBuilder {

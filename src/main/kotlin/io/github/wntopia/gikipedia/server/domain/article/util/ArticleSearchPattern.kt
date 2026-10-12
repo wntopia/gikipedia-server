@@ -1,4 +1,4 @@
-package io.github.wntopia.gikipedia.server.global.util
+package io.github.wntopia.gikipedia.server.domain.article.util
 
 /** PCRE2와 JVM의 Unicode case folding 차이를 피하고 ASCII 영문만 대소문자를 무시한다. */
 object ArticleSearchPattern {

@@ -1,4 +1,4 @@
-package io.github.wntopia.gikipedia.server.domain.article.service
+package io.github.wntopia.gikipedia.server.domain.article.util
 
 /** 지원하는 위키 문법만 제거한다. 미완성·중첩·미지원 구문은 텍스트로 남긴다. */
 object ArticleSearchTextConverter {

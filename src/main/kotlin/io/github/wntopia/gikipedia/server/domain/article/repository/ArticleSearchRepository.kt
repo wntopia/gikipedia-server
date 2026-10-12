@@ -1,8 +1,8 @@
 package io.github.wntopia.gikipedia.server.domain.article.repository
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchPattern
 import io.github.wntopia.gikipedia.server.global.config.ArticleSearchEnvironment
-import io.github.wntopia.gikipedia.server.global.util.ArticleSearchPattern
 import org.bson.Document
 import org.springframework.data.domain.Sort
 import org.springframework.data.mongodb.core.MongoTemplate
