@@ -65,13 +65,20 @@ class ArticleHistoryRecorder(
                 editor,
                 articleDiff.generate("", before),
                 EditMetadata.NONE,
-                before.length,
+                before.codePointCount(0, before.length),
             )
             saveSnapshot(article, BASELINE_REVISION, before)
         }
 
         val newRevision = (lastRevision ?: BASELINE_REVISION) + 1
-        appendHistory(article, newRevision, editor, diff, metadata.normalized(), after.length - before.length)
+        appendHistory(
+            article,
+            newRevision,
+            editor,
+            diff,
+            metadata.normalized(),
+            after.codePointCount(0, after.length) - before.codePointCount(0, before.length),
+        )
         contributionRecorder.recordEdit(editor.userId, articleId, newRevision)
         if (isSnapshotRevision(newRevision)) {
             saveSnapshot(article, newRevision, after)

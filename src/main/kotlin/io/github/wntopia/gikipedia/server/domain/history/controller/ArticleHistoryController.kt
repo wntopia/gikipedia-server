@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.HttpSession
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "Article History", description = "문서 버전(리비전) 히스토리 조회 API. 리비전 번호는 1(생성 시점)부터 수정마다 1씩 증가한다.")
-@Validated
 @RestController
 @RequestMapping("/api/v1/articles")
 class ArticleHistoryController(

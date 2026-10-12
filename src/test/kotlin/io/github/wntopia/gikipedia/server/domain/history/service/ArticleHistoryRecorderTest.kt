@@ -208,4 +208,16 @@ class ArticleHistoryRecorderTest {
         assertThat(captor.secondValue.summary).isNull()
         assertThat(captor.secondValue.minorEdit).isFalse()
     }
+
+    @Test
+    @DisplayName("글자 수 변화는 UTF-16 길이가 아니라 코드포인트 기준으로 센다")
+    fun countsCodePointsForCharDelta() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        recorder.record(article, before = "가", after = "가😀", editor = EditorIdentity(7L, "2412 홍길동"))
+
+        val captor = argumentCaptor<ArticleHistoryJpaEntity>()
+        verify(historyRepository, org.mockito.kotlin.times(2)).save(captor.capture())
+        assertThat(captor.secondValue.charDelta).isEqualTo(1) // 이모지 한 글자 = +1 (UTF-16이면 +2)
+    }
 }
