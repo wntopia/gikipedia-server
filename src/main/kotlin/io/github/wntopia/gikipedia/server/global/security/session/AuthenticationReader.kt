@@ -31,6 +31,10 @@ class AuthenticationReader {
         return EditorIdentity(userInfo.id, "${student.studentNumber ?: "?"} ${student.name ?: "?"}")
     }
 
+    /** 로그인한 사용자의 DataGSM 계정 id. 로그인하지 않았거나 계정 id가 없으면 401. */
+    fun requireUserId(session: HttpSession): Long =
+        getCurrentUser(session)?.id ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
+
     fun requireAdmin(session: HttpSession) {
         val role =
             getCurrentUser(session)?.role
