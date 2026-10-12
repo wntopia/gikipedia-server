@@ -20,8 +20,11 @@ import jakarta.persistence.Table
     indexes = [Index(name = "idx_contributions_user_created", columnList = "user_id, created_at")],
 )
 class ContributionJpaEntity(
-    /** [UserJpaEntity.datagsmUserId]와 같은 값. */
-    @field:Column(name = "user_id", nullable = false, updatable = false) val userId: Long,
+    /**
+     * [UserJpaEntity.datagsmUserId]와 같은 값. 컬럼은 nullable로 둔다 — 이후 비로그인 문서 생성 기여가 null로
+     * 기록되는데, `ddl-auto: update`는 이미 만든 컬럼의 NOT NULL을 풀지 않기 때문이다.
+     */
+    @field:Column(name = "user_id", updatable = false) val userId: Long,
     @field:Column(name = "article_id", nullable = false, updatable = false) val articleId: Long,
     @field:Enumerated(EnumType.STRING)
     @field:Column(name = "type", nullable = false, updatable = false, length = 20)
