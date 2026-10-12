@@ -1,57 +1,88 @@
 package io.github.wntopia.gikipedia.server.global.config
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.boot.test.context.runner.ApplicationContextRunner
-import org.springframework.context.annotation.Configuration
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.Duration
 
 class ArticleSearchEnvironmentTest {
-    @Configuration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(ArticleSearchEnvironment::class)
-    class TestConfig
+    @Nested
+    @DisplayName("Describe: ArticleSearchEnvironment 생성")
+    inner class DescribeConstruction {
+        @Nested
+        @DisplayName("Context: 설정값을 전달하지 않으면")
+        inner class ContextDefaults {
+            @Test
+            @DisplayName("It: 명령별 제한 시간은 2초다")
+            fun usesTwoSecondTimeout() {
+                // When
+                val environment = ArticleSearchEnvironment()
 
-    private val runner = ApplicationContextRunner().withUserConfiguration(TestConfig::class.java)
+                // Then
+                assertThat(environment.maxTime).isEqualTo(Duration.ofSeconds(2))
+            }
 
-    @Test
-    fun `동시 검색 기본 상한은 4이고 설정으로 바꿀 수 있다`() {
-        runner.run { context ->
-            assertThat(context).hasNotFailed()
-            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxConcurrentRequests).isEqualTo(4)
-        }
-        runner.withPropertyValues("article.search.max-concurrent-requests=1").run { context ->
-            assertThat(context).hasNotFailed()
-            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxConcurrentRequests).isEqualTo(1)
-        }
-    }
+            @Test
+            @DisplayName("It: 동시 검색 상한은 4개다")
+            fun usesFourConcurrentRequests() {
+                // When
+                val environment = ArticleSearchEnvironment()
 
-    @Test
-    fun `동시 검색 상한이 0이나 음수이면 시작 시 거부한다`() {
-        for (value in listOf("0", "-1")) {
-            runner.withPropertyValues("article.search.max-concurrent-requests=$value").run { context ->
-                assertThat(context).hasFailed()
+                // Then
+                assertThat(environment.maxConcurrentRequests).isEqualTo(4)
             }
         }
-    }
 
-    @Test
-    fun `기본 제한 시간은 2초이고 설정으로 바꿀 수 있다`() {
-        runner.run { context ->
-            assertThat(context).hasNotFailed()
-            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxTime).isEqualTo(Duration.ofSeconds(2))
-        }
-        runner.withPropertyValues("article.search.max-time=500ms").run { context ->
-            assertThat(context).hasNotFailed()
-            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxTime).isEqualTo(Duration.ofMillis(500))
-        }
-    }
+        @Nested
+        @DisplayName("Context: 유효한 설정값을 전달하면")
+        inner class ContextCustomSettings {
+            @Test
+            @DisplayName("It: 전달한 제한 시간과 동시 실행 상한을 사용한다")
+            fun usesCustomLimits() {
+                // Given
+                val timeout = Duration.ofMillis(500)
 
-    @Test
-    fun `무제한 실행이 되는 0과 음수는 시작 시 거부한다`() {
-        for (value in listOf("0s", "-1s", "0.000001s")) {
-            runner.withPropertyValues("article.search.max-time=$value").run { context ->
-                assertThat(context).hasFailed()
+                // When
+                val environment = ArticleSearchEnvironment(timeout, 1)
+
+                // Then
+                assertThat(environment.maxTime).isEqualTo(timeout)
+                assertThat(environment.maxConcurrentRequests).isEqualTo(1)
+            }
+        }
+
+        @Nested
+        @DisplayName("Context: 제한 시간을 밀리초로 변환한 값이 양수가 아니면")
+        inner class ContextInvalidTimeout {
+            @ParameterizedTest(name = "{0}ns")
+            @ValueSource(longs = [0, -1_000_000_000, 1_000])
+            @DisplayName("It: 설정 객체 생성을 거부한다")
+            fun rejectsInvalidTimeout(nanos: Long) {
+                // Given
+                val timeout = Duration.ofNanos(nanos)
+
+                // When / Then
+                assertThatThrownBy { ArticleSearchEnvironment(maxTime = timeout) }
+                    .isInstanceOf(IllegalArgumentException::class.java)
+                    .hasMessage("article.search.max-time은 1ms 이상이어야 합니다.")
+            }
+        }
+
+        @Nested
+        @DisplayName("Context: 동시 실행 상한이 양수가 아니면")
+        inner class ContextInvalidConcurrency {
+            @ParameterizedTest(name = "상한 {0}")
+            @ValueSource(ints = [0, -1])
+            @DisplayName("It: 설정 객체 생성을 거부한다")
+            fun rejectsInvalidConcurrency(limit: Int) {
+                // When / Then
+                assertThatThrownBy { ArticleSearchEnvironment(maxConcurrentRequests = limit) }
+                    .isInstanceOf(IllegalArgumentException::class.java)
+                    .hasMessage("article.search.max-concurrent-requests는 1 이상이어야 합니다.")
             }
         }
     }
