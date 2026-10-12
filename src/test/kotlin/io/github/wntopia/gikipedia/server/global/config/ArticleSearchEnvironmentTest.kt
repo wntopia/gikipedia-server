@@ -15,6 +15,27 @@ class ArticleSearchEnvironmentTest {
     private val runner = ApplicationContextRunner().withUserConfiguration(TestConfig::class.java)
 
     @Test
+    fun `동시 검색 기본 상한은 4이고 설정으로 바꿀 수 있다`() {
+        runner.run { context ->
+            assertThat(context).hasNotFailed()
+            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxConcurrentRequests).isEqualTo(4)
+        }
+        runner.withPropertyValues("article.search.max-concurrent-requests=1").run { context ->
+            assertThat(context).hasNotFailed()
+            assertThat(context.getBean(ArticleSearchEnvironment::class.java).maxConcurrentRequests).isEqualTo(1)
+        }
+    }
+
+    @Test
+    fun `동시 검색 상한이 0이나 음수이면 시작 시 거부한다`() {
+        for (value in listOf("0", "-1")) {
+            runner.withPropertyValues("article.search.max-concurrent-requests=$value").run { context ->
+                assertThat(context).hasFailed()
+            }
+        }
+    }
+
+    @Test
     fun `기본 제한 시간은 2초이고 설정으로 바꿀 수 있다`() {
         runner.run { context ->
             assertThat(context).hasNotFailed()

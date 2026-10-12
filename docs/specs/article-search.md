@@ -62,6 +62,7 @@ GET /api/v1/articles?q=급식&page=0&size=20
 | 마지막 페이지 초과 | `200`, 빈 `items`, 요청한 페이지 번호와 계산한 전체 건수 유지 |
 | 잘못된 입력 | `400`. DB 조회 전에 검증 |
 | 검색 저장소 오류 | 알려진 Mongo 연결 실패·쿼리 제한 시간 초과는 `503`. 빈 성공 결과로 바꾸지 않음 |
+| 동시 실행 한도 | 인스턴스별 기본 4개. 한도에 도달하면 DB 호출·대기 없이 공통 형식의 `503` 반환 |
 | 저장소 전환 | 검색은 MongoDB 전용. `article.read.source`의 영향을 받지 않으며 MySQL로 자동 전환하지 않음 |
 
 `page * size`는 `Long`으로 계산한다. 전체 건수와 페이지 수도 `Long`을 사용한다. 임의의 최대 페이지 번호는 추가하지 않는다. 깊은 페이지의 비용은 실행 시간 제한과 성능 측정으로 확인한다.
@@ -159,7 +160,11 @@ DB와 JVM의 정규식 엔진이 다르므로 한글, 영문 대소문자, 특�
 
 `ArticleSearchEnvironment`에 DB 명령별 실행 시간 제한을 둔다. 초기값은 2초다. 목록과 건수 조회에 각각 적용하고 제한 시간 초과는 `503`으로 반환한다. 이는 HTTP 응답 2초 보장이나 측정한 성능 목표가 아니다. 드라이버 연결 대기와 두 쿼리의 합산 시간도 존재한다. 밀리초로 변환한 설정값이 0 이하이면 시작 시 거부한다. 최소 제한은 1ms다.
 
-연결 오류·실행 시간 초과에 대해서만 검색 불가 오류로 변환한다. 프로그래밍 오류까지 모두 `503`으로 숨기지 않는다. 오류 응답에 쿼리 원문이나 내부 예외 정보를 포함하지 않는다.
+저장소 예외 중 연결 오류·실행 시간 초과만 검색 불가 오류로 변환한다. 프로그래밍 오류까지 모두 `503`으로 숨기지 않는다. 오류 응답에 쿼리 원문이나 내부 예외 정보를 포함하지 않는다.
+
+`article.search.max-concurrent-requests`로 인스턴스별 동시 검색 실행 수를 제한한다. 기본값은 4이며 0·음수는 시작 시 거부한다. 입력 검증 후 `Semaphore.tryAcquire()`로 허가를 얻는다. 한도에 도달하면 DB를 호출하거나 허가를 기다리지 않고 기존 공통 오류 본문의 `503`을 반환한다. 허가는 건수 조회·목록 조회·발췌 생성 전체에 유지하고 성공·예외 모두 `finally`에서 반환한다. 기존 ID 조회에는 적용하지 않는다. 일시 과부하의 `503` 사용은 [RFC 9110 §15.6.4](https://www.rfc-editor.org/rfc/rfc9110.html#name-503-service-unavailable)를 따른다.
+
+이 제한은 리뷰에서 확인한 무제한 동시 실행을 차단한다. 기본값 4는 운영 용량을 검증한 수치가 아니다. 초당 요청 수나 사용자별 점유를 제한하지 않으며 여러 인스턴스의 합산 상한도 아니다. 같은 DB를 공유하는 인스턴스 수가 N이고 각 상한이 4라면 동시 검색 실행은 최대 4N개다. 운영 부하에 맞게 값을 조정해야 하며, 인스턴스 증설 시에는 공유 DB의 합산 예산과 외부 유입 제한을 별도로 정해야 한다. 전체 스캔 비용과 지속적인 부하를 제거하는 변경은 아니다.
 
 일반 제목·본문 인덱스를 먼저 추가해서 성능 해결로 간주하지 않는다. 실제 MongoDB에서 실행 계획과 쿼리 시간을 측정한다. 짧은 검색어, 흔한 검색어, 결과 없음, 긴 본문, 뒤쪽 페이지를 포함한다. 목표 데이터량과 처리량이 없으므로 운영 성능 통과를 선언할 기준은 아직 없다. 측정 결과가 요구 부하를 감당하지 못하면 검색 인덱스 설계를 별도 검토한다.
 
@@ -178,12 +183,12 @@ DB와 JVM의 정규식 엔진이 다르므로 한글, 영문 대소문자, 특�
 | `domain/article/dto/response/ArticleSearchItemResDto.kt` | ID, 제목, 발췌, 수정 시각 추가 |
 | `domain/article/dto/response/SnippetSegmentResDto.kt` | 텍스트와 강조 여부 추가 |
 | `domain/article/service/SearchArticleService.kt` | 검색 유스케이스 인터페이스 추가 |
-| `domain/article/service/impl/SearchArticleServiceImpl.kt` | 검색 조합, 발췌, 오류 변환 추가 |
+| `domain/article/service/impl/SearchArticleServiceImpl.kt` | 검색 조합, 발췌, 오류 변환, 인스턴스별 동시 실행 제한 추가 |
 | `domain/article/util/ArticleSearchSnippetBuilder.kt` | 발췌 경계와 강조 구간 생성 추가 |
 | `domain/article/controller/ArticleSearchController.kt` | GET 목록 검색, Swagger, 검색 입력 오류 응답 추가 |
 | `domain/article/util/ArticleSearchPattern.kt` | 문서 검색의 Mongo·JVM 리터럴 패턴 유틸리티. 저장소와 발췌 생성기가 참조 |
 | `global/entity/BaseMongoEntity.kt` | 실제 Mongo 조회 시 ID 복원을 위해 `id`에 protected setter 추가 |
-| `global/config/ArticleSearchEnvironment.kt` | 검색 실행 시간 제한 설정 추가 |
+| `global/config/ArticleSearchEnvironment.kt` | 검색 실행 시간과 동시 실행 상한 설정 추가 |
 | `src/main/resources/application.yaml.example` | 검색 제한 시간 예시 추가 |
 | `build.mill` | 실제 Mongo 통합 테스트를 위한 Testcontainers 의존성 추가 |
 | 기존 Mongo 엔티티 사용 테스트 | 신규 필드의 테스트 데이터와 동기화 검증 보완 |
@@ -204,6 +209,7 @@ SDK Swagger 경로는 실제 설정인 `/api/v1/**`를 따른다. Swagger에는 
 | 동기화 | 생성·수정·공동편집의 공통 경로, 삽입·갱신의 원문/검색 본문 일치, 오래된 이벤트 차단 |
 | 실제 MongoDB 7 | 저장 필드 매핑, 정규식 리터럴과 엔진 일치, 집계 순위·정렬·건수·페이지, 검색 직전 수정된 파생 필드 |
 | HTTP | 익명 접근, DTO 바인딩, 응답 래퍼, 원본 수정 시각, 400·503, 기존 ID 조회와 경로 충돌 없음 |
+| 동시 실행 제한 | 기본·설정 상한, 건수·목록 조회 중 초과 요청 거부, DB 미호출, 정상·예외 종료 후 허가 반환, HTTP 503 |
 | 회귀 | 기존 문서 조회·수정·히스토리·공동편집 테스트 전체 통과 |
 
 실제 MongoDB 테스트는 Testcontainers의 전용 테스트 DB를 사용한다. 운영 DB를 테스트 대상으로 사용하지 않는다. 컨테이너 실행 불가를 성공으로 취급하거나 통합 테스트를 자동으로 건너뛰지 않는다. Testcontainers는 Spring Boot BOM이 관리하는 2.0.5를 사용한다. 로컬 검증에는 Docker 데몬을 사용할 수 있어야 한다.
@@ -291,3 +297,15 @@ MySQL 스키마와 문서 히스토리 형식은 바꾸지 않는다. 미작성 
 ### CI 포맷 실패
 
 `dcfa4c5`의 CI는 테스트를 통과한 뒤 `ArticleSearchTextConverter`의 포맷 검사에서 실패했다. 로컬 기본 실행과 새 프로세스 실행은 통과했지만, `JAVA_HOME`에 Java 25를 명시한 새 프로세스에서는 같은 실패가 재현됐다. 해당 환경의 포매터가 여러 줄 `if` 조건을 조건별 한 줄로 분리했다. 이 변경 후 기본 환경과 Java 25 환경의 포맷 검사 모두 통과했다. 패키지 배치는 이 실패의 원인이 아니었다. 실행 환경에 따라 검사 결과가 달라진 포매터 내부 원인까지 규명한 것은 아니다.
+
+### PR 리뷰 반영: 동시 검색 제한
+
+[Copilot 리뷰 4244199654](https://github.com/wntopia/gikipedia-server/pull/32#discussion_r4244199654)는 익명 검색에 요청 실행 제한이 없어 MongoDB 자원이 고갈될 수 있다고 지적했다. VALID로 판정했다. 저장소는 요청마다 건수와 목록을 별도로 조회하고, 기존 `maxTime`은 동시 요청 수를 제한하지 않는다. 이 판단은 위 성능·오류 처리 명세와 [OWASP API4:2023](https://owasp.org/API-Security/editions/2023/en/0xa4-unrestricted-resource-consumption/)의 자원 소비 제한 원칙에 근거한다.
+
+동시 검색 4개를 실행한 상태에서 추가 요청이 거부되지 않는 실패를 먼저 재현했다. 서비스의 검색 전체 구간에 인스턴스별 동시 실행 상한을 적용한 후 다음을 검증했다.
+
+- 기본 상한 4와 설정 상한 1, 초과 요청의 즉시 거부와 DB 미호출, 반복 거부 후 상한 유지.
+- 건수·목록 조회 중 제한 유지, 정상 종료와 각 조회의 연결·시간 초과·프로그래밍 예외 후 허가 반환.
+- HTTP 공통 503 응답, 기존 ID 조회 허용, 검색 완료 후 다음 요청 허용, 0·음수 설정의 시작 실패.
+
+추가 테스트는 11개다. 관련 42개와 전체 190개 테스트를 통과했다. 전체 28개 클래스에서 실패·오류·건너뜀은 0이다. Java 25를 명시한 `spotless --check`, `assembly`와 `git diff --check`도 통과했다. 운영 동시 부하 시험과 커버리지 측정은 수행하지 않았다.

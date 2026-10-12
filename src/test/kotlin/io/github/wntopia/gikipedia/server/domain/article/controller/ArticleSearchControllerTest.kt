@@ -8,15 +8,19 @@ import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleSer
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.impl.SearchArticleServiceImpl
+import io.github.wntopia.gikipedia.server.global.config.ArticleSearchEnvironment
 import io.github.wntopia.gikipedia.server.global.security.config.SecurityConfig
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Bean
@@ -25,6 +29,7 @@ import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.QueryTimeoutException
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.ResultActions
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
@@ -35,8 +40,15 @@ import team.themoment.sdk.config.ResponseProperties
 import team.themoment.sdk.exception.GlobalExceptionHandler
 import team.themoment.sdk.response.ApiResponseWrapper
 import java.time.Instant
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
-@WebMvcTest(ArticleController::class, ArticleSearchController::class)
+@WebMvcTest(
+    ArticleController::class,
+    ArticleSearchController::class,
+    properties = ["article.search.max-concurrent-requests=1"],
+)
 @Import(
     SearchArticleServiceImpl::class,
     SecurityConfig::class,
@@ -46,6 +58,7 @@ import java.time.Instant
 )
 class ArticleSearchControllerTest {
     @TestConfiguration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(ArticleSearchEnvironment::class)
     class Configuration {
         @Bean
         fun responseProperties() = ResponseProperties()
@@ -176,6 +189,42 @@ class ArticleSearchControllerTest {
                 .perform(get("/api/v1/articles").param("q", query))
                 .andExpect(status().isServiceUnavailable)
                 .andExpect(jsonPath("$.message").value("문서 검색을 일시적으로 사용할 수 없습니다."))
+        }
+    }
+
+    @Test
+    fun `익명 검색 한도가 차면 공통 503을 반환하고 기존 조회와 완료 후 검색은 허용한다`() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        whenever(repository.count("진행")).thenAnswer {
+            entered.countDown()
+            check(release.await(5, TimeUnit.SECONDS))
+            0L
+        }
+        whenever(repository.search(any(), any(), any())).thenReturn(emptyList())
+        whenever(queryArticleService.execute(7)).thenReturn(ArticleResDto(7, "제목", "본문", null, null, null))
+        try {
+            val running = executor.submit<ResultActions> { mvc.perform(get("/api/v1/articles").param("q", "진행")) }
+            assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue()
+            mvc
+                .perform(get("/api/v1/articles").param("q", "초과"))
+                .andExpect(status().isServiceUnavailable)
+                .andExpect(jsonPath("$.message").value("문서 검색을 일시적으로 사용할 수 없습니다."))
+                .andExpect(jsonPath("$.code").exists())
+            verify(repository, never()).count("초과")
+            mvc
+                .perform(get("/api/v1/articles/7"))
+                .andExpect(status().isOk)
+            release.countDown()
+            running.get(5, TimeUnit.SECONDS).andExpect(status().isOk)
+            mvc
+                .perform(get("/api/v1/articles").param("q", "회복"))
+                .andExpect(status().isOk)
+        } finally {
+            release.countDown()
+            executor.shutdownNow()
+            assertThat(executor.awaitTermination(5, TimeUnit.SECONDS)).isTrue()
         }
     }
 

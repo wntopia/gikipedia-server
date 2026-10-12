@@ -33,13 +33,14 @@ class ArticleSearchController(
                 "제목 정확히 일치 → 제목 포함 → 본문 포함 순이며, 각 그룹은 원본 수정 시각·문서 ID 내림차순이다. " +
                 "snippet은 표시용 문자열과 highlight 배열이며 HTML로 해석하지 않는다. 본문이 비면 빈 배열이다. " +
                 "MongoDB 비동기 읽기 뷰를 사용하므로 저장 직후 반영을 보장하지 않는다. " +
-                "동시 수정 시 전체 건수와 목록이 다를 수 있고 페이지 사이 중복·누락이 가능하다.",
+                "동시 수정 시 전체 건수와 목록이 다를 수 있고 페이지 사이 중복·누락이 가능하다. " +
+                "검색이 몰려 실행 한도에 도달하면 대기 없이 503을 반환한다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "검색 성공. 결과가 없으면 items=[], totalElements=0, totalPages=0"),
             ApiResponse(responseCode = "400", description = "빈 검색어, 100자 초과, NUL 문자, 음수 페이지, 페이지 크기 1~50 위반"),
-            ApiResponse(responseCode = "503", description = "MongoDB 연결 실패 또는 검색 실행 시간 제한 초과"),
+            ApiResponse(responseCode = "503", description = "검색 동시 실행 한도 도달, MongoDB 연결 실패 또는 검색 실행 시간 제한 초과"),
         ],
     )
     @GetMapping
