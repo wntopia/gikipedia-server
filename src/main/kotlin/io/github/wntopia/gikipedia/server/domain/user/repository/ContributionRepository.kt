@@ -30,6 +30,34 @@ interface ContributionRepository : JpaRepository<ContributionJpaEntity, Long> {
         @Param("userId") userId: Long,
         pageable: Pageable,
     ): List<ContributionView>
+
+    /** 주어진 문서들의 [since] 이후 수정 횟수와 수정한 사람 수. 오늘 수정이 없는 문서는 결과에 없다. */
+    @Query(
+        "SELECT c.articleId AS articleId, COUNT(c) AS editCount, COUNT(DISTINCT c.userId) AS editorCount " +
+            "FROM ContributionJpaEntity c " +
+            "WHERE c.articleId IN :articleIds AND c.type = " +
+            "io.github.wntopia.gikipedia.server.domain.user.entity.ContributionType.EDIT AND c.createdAt >= :since " +
+            "GROUP BY c.articleId",
+    )
+    fun findEditStatsSince(
+        @Param("articleIds") articleIds: Collection<Long>,
+        @Param("since") since: Instant,
+    ): List<ArticleEditStatsView>
+
+    /** 주어진 문서들 각각의 가장 최근 기여 한 건. */
+    @Query(
+        "SELECT c FROM ContributionJpaEntity c WHERE c.id IN " +
+            "(SELECT MAX(c2.id) FROM ContributionJpaEntity c2 WHERE c2.articleId IN :articleIds GROUP BY c2.articleId)",
+    )
+    fun findLatestByArticleIds(
+        @Param("articleIds") articleIds: Collection<Long>,
+    ): List<ContributionJpaEntity>
+}
+
+interface ArticleEditStatsView {
+    val articleId: Long
+    val editCount: Long
+    val editorCount: Long
 }
 
 interface ContributionView {

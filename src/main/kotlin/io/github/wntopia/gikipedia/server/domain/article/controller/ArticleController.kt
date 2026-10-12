@@ -6,10 +6,12 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.LookupArticleTitlesResDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.response.RecentChangeResDto
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.LookupArticleTitlesService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleByTitleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
+import io.github.wntopia.gikipedia.server.domain.article.service.QueryRecentChangesService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.domain.link.dto.response.BacklinkResDto
@@ -51,6 +53,7 @@ class ArticleController(
     private val queryArticleByTitleService: QueryArticleByTitleService,
     private val lookupArticleTitlesService: LookupArticleTitlesService,
     private val queryBacklinksService: QueryBacklinksService,
+    private val queryRecentChangesService: QueryRecentChangesService,
 ) {
     @Operation(
         summary = "문서 생성",
@@ -90,6 +93,31 @@ class ArticleController(
     fun queryByTitle(
         @Parameter(description = "문서 제목", example = "기숙사 생활 안내") @RequestParam title: String,
     ): ArticleResDto = queryArticleByTitleService.execute(title)
+
+    @Operation(
+        summary = "최근 변경 문서 목록 조회",
+        description =
+            "최근에 수정된 문서를 최신 순으로 문서당 한 항목씩 반환한다. 같은 문서를 여러 번 수정해도 한 번만 나오고, " +
+                "오늘(한국 시간 0시부터) 편집 횟수와 편집한 사용자 수가 함께 내려온다. " +
+                "\"○○ 외 N명이 오늘 M회 수정\"은 `lastEditorName`, `todayEditorCount - 1`, `todayEditCount`로 만들 수 있다. " +
+                "생성 이후 수정되지 않은 문서는 `newlyCreated`가 true다. 로그인 없이 호출할 수 있다.",
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "조회 성공"),
+            ApiResponse(responseCode = "400", description = "page 또는 size가 범위를 벗어남"),
+        ],
+    )
+    @GetMapping("/recent-changes")
+    fun recentChanges(
+        @Parameter(description = "페이지 번호 (0부터, 기본 0)", example = "0")
+        @RequestParam(defaultValue = "0")
+        @Min(0) page: Int,
+        @Parameter(description = "페이지 크기 (1~100, 기본 20)", example = "20")
+        @RequestParam(defaultValue = "20")
+        @Min(1)
+        @Max(100) size: Int,
+    ): PageResDto<RecentChangeResDto> = queryRecentChangesService.execute(page, size)
 
     @Operation(
         summary = "역링크 조회",

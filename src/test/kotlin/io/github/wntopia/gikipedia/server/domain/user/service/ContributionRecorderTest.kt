@@ -41,9 +41,19 @@ class ContributionRecorderTest {
     }
 
     @Test
-    @DisplayName("사용자를 알 수 없으면 아무것도 기록하지 않는다")
-    fun ignoresUnknownUser() {
+    @DisplayName("비로그인 생성도 userId 없이 CREATE로 기록한다")
+    fun recordsAnonymousCreate() {
         recorder.recordCreate(null, 1L)
+
+        val captor = argumentCaptor<ContributionJpaEntity>()
+        verify(contributionRepository).save(captor.capture())
+        assertThat(captor.firstValue.userId).isNull()
+        assertThat(captor.firstValue.type).isEqualTo(ContributionType.CREATE)
+    }
+
+    @Test
+    @DisplayName("편집자를 알 수 없는 수정은 기록하지 않는다")
+    fun ignoresEditWithoutUser() {
         recorder.recordEdit(null, 1L, 2)
 
         verify(contributionRepository, never()).save(any<ContributionJpaEntity>())

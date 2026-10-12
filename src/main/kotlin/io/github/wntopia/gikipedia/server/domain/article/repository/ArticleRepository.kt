@@ -2,6 +2,7 @@ package io.github.wntopia.gikipedia.server.domain.article.repository
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -10,6 +11,15 @@ import org.springframework.data.repository.query.Param
 
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun existsByTitle(title: String): Boolean
+
+    /** 최근에 수정된 문서 순(수정 시각 내림차순). 본문은 읽지 않는다. */
+    @Query(
+        value =
+            "SELECT a.id AS id, a.title AS title, a.createdAt AS createdAt, a.updatedAt AS updatedAt " +
+                "FROM ArticleJpaEntity a ORDER BY a.updatedAt DESC, a.id DESC",
+        countQuery = "SELECT COUNT(a) FROM ArticleJpaEntity a",
+    )
+    fun findRecentlyUpdated(pageable: Pageable): Page<ArticleRecentView>
 
     fun findByTitle(title: String): ArticleJpaEntity?
 
@@ -50,4 +60,11 @@ interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
 interface ArticleTitleProjection {
     val id: Long
     val title: String
+}
+
+interface ArticleRecentView {
+    val id: Long
+    val title: String
+    val createdAt: java.time.Instant
+    val updatedAt: java.time.Instant
 }

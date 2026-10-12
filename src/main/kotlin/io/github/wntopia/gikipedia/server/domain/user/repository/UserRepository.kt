@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface UserRepository : JpaRepository<UserJpaEntity, Long> {
     fun findByDatagsmUserId(datagsmUserId: Long): UserJpaEntity?
+
+    fun findByDatagsmUserIdIn(datagsmUserIds: Collection<Long>): List<UserJpaEntity>
 }
