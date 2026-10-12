@@ -17,10 +17,17 @@ import jakarta.persistence.Table
 @Entity
 @Table(
     name = "user_contributions",
-    indexes = [Index(name = "idx_contributions_user_created", columnList = "user_id, created_at")],
+    indexes = [
+        Index(name = "idx_contributions_user_created", columnList = "user_id, created_at"),
+        // 최근 변경 목록이 문서별 최신 기여(MAX(id) GROUP BY article_id)와 편집 통계를 article_id로 찾는다.
+        Index(name = "idx_contributions_article_id", columnList = "article_id, id"),
+    ],
 )
 class ContributionJpaEntity(
-    /** [UserJpaEntity.datagsmUserId]와 같은 값. 비로그인으로 만든 문서의 생성 기여만 null이다(수정은 로그인이 필요). */
+    /**
+     * [UserJpaEntity.datagsmUserId]와 같은 값. 비로그인으로 만든 문서의 생성 기여만 null이다(수정은 로그인이 필요).
+     * `ddl-auto: update`는 이미 만든 컬럼의 NOT NULL을 풀지 않으므로 컬럼은 처음부터 nullable로 만든다.
+     */
     @field:Column(name = "user_id", updatable = false) val userId: Long?,
     @field:Column(name = "article_id", nullable = false, updatable = false) val articleId: Long,
     @field:Enumerated(EnumType.STRING)
