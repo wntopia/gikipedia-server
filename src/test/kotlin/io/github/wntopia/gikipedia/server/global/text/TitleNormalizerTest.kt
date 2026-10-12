@@ -23,4 +23,16 @@ class TitleNormalizerTest {
     fun keyIgnoresCase() {
         assertThat(TitleNormalizer.keyOf(" Gikipedia  Home ")).isEqualTo(TitleNormalizer.keyOf("gikipedia home"))
     }
+
+    @Test
+    @DisplayName("비교 키는 전각/반각을 구분하지 않는다 — DB collation과 같은 기준")
+    fun keyIgnoresWidth() {
+        assertThat(TitleNormalizer.keyOf("Ｇｉｋｉ１")).isEqualTo(TitleNormalizer.keyOf("giki1"))
+    }
+
+    @Test
+    @DisplayName("비교 키는 악센트를 구분한다 — title 컬럼 collation(utf8mb4_0900_as_ci)과 같은 기준")
+    fun keyDistinguishesAccents() {
+        assertThat(TitleNormalizer.keyOf("Résumé")).isNotEqualTo(TitleNormalizer.keyOf("resume"))
+    }
 }
