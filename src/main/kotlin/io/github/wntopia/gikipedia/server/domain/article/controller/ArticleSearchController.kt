@@ -1,6 +1,8 @@
 package io.github.wntopia.gikipedia.server.domain.article.controller
 
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.SearchArticleReqDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.request.SearchArticleReqDto.Companion.MAX_PAGE_SIZE
+import io.github.wntopia.gikipedia.server.domain.article.dto.request.SearchArticleReqDto.Companion.MAX_QUERY_LENGTH
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleSearchResDto
 import io.github.wntopia.gikipedia.server.domain.article.service.SearchArticleService
 import io.swagger.v3.oas.annotations.Operation
@@ -39,7 +41,10 @@ class ArticleSearchController(
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "검색 성공. 결과가 없으면 items=[], totalElements=0, totalPages=0"),
-            ApiResponse(responseCode = "400", description = "빈 검색어, 100자 초과, NUL 문자, 음수 페이지, 페이지 크기 1~50 위반"),
+            ApiResponse(
+                responseCode = "400",
+                description = "빈 검색어, ${MAX_QUERY_LENGTH}자 초과, NUL 문자, 음수 페이지, 페이지 크기 1~$MAX_PAGE_SIZE 위반",
+            ),
             ApiResponse(responseCode = "503", description = "검색 동시 실행 한도 도달, MongoDB 연결 실패 또는 검색 실행 시간 제한 초과"),
         ],
     )

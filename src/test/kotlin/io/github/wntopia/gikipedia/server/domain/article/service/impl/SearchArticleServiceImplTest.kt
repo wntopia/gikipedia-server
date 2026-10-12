@@ -1,5 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.article.service.impl
 
+import com.mongodb.MongoException
+import com.mongodb.MongoExecutionTimeoutException
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.SearchArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleSearchResDto
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleSearchDocument
@@ -13,6 +15,8 @@ import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -22,6 +26,8 @@ import org.mockito.kotlin.whenever
 import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.InvalidDataAccessApiUsageException
 import org.springframework.dao.QueryTimeoutException
+import org.springframework.data.mongodb.UncategorizedMongoDbException
+import org.springframework.data.mongodb.core.MongoExceptionTranslator
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Duration
@@ -85,6 +91,21 @@ class SearchArticleServiceImplTest {
         @Nested
         @DisplayName("Context: 공백을 포함한 검색어와 페이지를 전달하면")
         inner class ContextSearchResult {
+            @ParameterizedTest
+            @ValueSource(strings = ["급식  안내", "급식\t안내", "급식\n안내", "급식\u00a0안내"])
+            @DisplayName("It: 검색어 내부의 공백은 합치거나 바꾸지 않는다")
+            fun `검색어 내부의 공백은 합치거나 바꾸지 않는다`(query: String) {
+                // Given
+                whenever(repository.search(query, 0, 20)).thenReturn(emptyList())
+
+                // When
+                service.execute(SearchArticleReqDto("  $query  "))
+
+                // Then
+                verify(repository).count(query)
+                verify(repository).search(query, 0, 20)
+            }
+
             @Test
             @DisplayName("It: 양끝 공백만 제거하고 원본 수정 시각과 전체 페이지를 반환한다")
             fun `양끝 공백만 제거하고 원본 수정 시각과 전체 페이지를 반환한다`() {
@@ -275,6 +296,63 @@ class SearchArticleServiceImplTest {
                 assertThat(result.page).isEqualTo(10)
                 assertThat(result.totalPages).isEqualTo(1)
                 assertThat(result.totalElements).isEqualTo(4)
+            }
+        }
+
+        @Nested
+        @DisplayName("Context: MongoDB 드라이버 예외가 실제 변환기를 거치면")
+        inner class ContextTranslatedMongoFailure {
+            @ParameterizedTest
+            @ValueSource(strings = ["count", "search"])
+            @DisplayName("It: 실행 시간 초과는 503으로 변환하고 동시 실행 허가를 반환한다")
+            fun `실행 시간 초과는 503으로 변환하고 동시 실행 허가를 반환한다`(stage: String) {
+                // Given
+                val driverFailure = MongoExecutionTimeoutException(50, "internal query exceeded maxTimeMS")
+                val failure = requireNotNull(MongoExceptionTranslator().translateExceptionIfPossible(driverFailure))
+                assertThat(failure).isInstanceOf(UncategorizedMongoDbException::class.java)
+                assertThat(failure.cause).isSameAs(driverFailure)
+                val limitedService =
+                    SearchArticleServiceImpl(repository, ArticleSearchEnvironment(maxConcurrentRequests = 1))
+                whenever(repository.search(any(), any(), any())).thenReturn(emptyList())
+                if (stage == "count") {
+                    whenever(repository.count("실패")).thenThrow(failure)
+                } else {
+                    whenever(repository.search("실패", 0, 20)).thenThrow(failure)
+                }
+
+                // When / Then
+                assertThatThrownBy { limitedService.execute(SearchArticleReqDto("실패")) }
+                    .isInstanceOfSatisfying(ExpectedException::class.java) {
+                        assertThat(it.statusCode).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE)
+                        assertThat(it.message).isEqualTo("문서 검색을 일시적으로 사용할 수 없습니다.")
+                    }
+                assertThat(limitedService.execute(SearchArticleReqDto("회복")).items).isEmpty()
+                verify(repository).search("회복", 0, 20)
+            }
+
+            @ParameterizedTest
+            @ValueSource(strings = ["count", "search"])
+            @DisplayName("It: 실행 시간 초과가 아닌 미분류 오류는 숨기지 않고 허가를 반환한다")
+            fun `실행 시간 초과가 아닌 미분류 오류는 숨기지 않고 허가를 반환한다`(stage: String) {
+                // Given
+                val failure =
+                    requireNotNull(
+                        MongoExceptionTranslator().translateExceptionIfPossible(MongoException(99997, "unknown")),
+                    )
+                assertThat(failure).isInstanceOf(UncategorizedMongoDbException::class.java)
+                val limitedService =
+                    SearchArticleServiceImpl(repository, ArticleSearchEnvironment(maxConcurrentRequests = 1))
+                whenever(repository.search(any(), any(), any())).thenReturn(emptyList())
+                if (stage == "count") {
+                    whenever(repository.count("실패")).thenThrow(failure)
+                } else {
+                    whenever(repository.search("실패", 0, 20)).thenThrow(failure)
+                }
+
+                // When / Then
+                assertThatThrownBy { limitedService.execute(SearchArticleReqDto("실패")) }.isSameAs(failure)
+                assertThat(limitedService.execute(SearchArticleReqDto("회복")).items).isEmpty()
+                verify(repository).search("회복", 0, 20)
             }
         }
 

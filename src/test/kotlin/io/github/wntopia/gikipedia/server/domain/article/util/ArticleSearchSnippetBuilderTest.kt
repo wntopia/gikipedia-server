@@ -96,6 +96,25 @@ class ArticleSearchSnippetBuilderTest {
         }
 
         @Nested
+        @DisplayName("Context: 두 번째 일치가 발췌 끝에서 잘리면")
+        inner class ContextPartialTrailingMatch {
+            @Test
+            @DisplayName("It: 온전히 보이는 일치만 강조하고 잘린 부분은 일반 텍스트로 반환한다")
+            fun `온전히 보이는 일치만 강조하고 잘린 부분은 일반 텍스트로 반환한다`() {
+                // Given
+                val text = "급식" + "가".repeat(157) + "급식"
+
+                // When
+                val parts = ArticleSearchSnippetBuilder.build(text, "급식")
+
+                // Then
+                assertThat(parts.filter { it.highlight }.map { it.text }).containsExactly("급식")
+                assertThat(parts.last().text).isEqualTo("가".repeat(157) + "급…")
+                assertThat(parts.last().highlight).isFalse()
+            }
+        }
+
+        @Nested
         @DisplayName("Context: 발췌 끝에 grapheme이 걸치면")
         inner class ContextEndBoundary {
             @Test
