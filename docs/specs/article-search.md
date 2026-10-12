@@ -181,7 +181,7 @@ DB와 JVM의 정규식 엔진이 다르므로 한글, 영문 대소문자, 특�
 | `domain/article/service/impl/SearchArticleServiceImpl.kt` | 검색 조합, 발췌, 오류 변환 추가 |
 | `domain/article/service/ArticleSearchSnippetBuilder.kt` | 발췌 경계와 강조 구간 생성 추가 |
 | `domain/article/controller/ArticleSearchController.kt` | GET 목록 검색, Swagger, 검색 입력 오류 응답 추가 |
-| `domain/article/service/ArticleSearchPattern.kt` | Mongo·JVM 공용 리터럴 패턴 생성 |
+| `global/util/ArticleSearchPattern.kt` | Mongo·JVM 공용 리터럴 패턴 유틸리티. 저장소와 서비스가 공통 참조 |
 | `global/entity/BaseMongoEntity.kt` | 실제 Mongo 조회 시 ID 복원을 위해 `id`에 protected setter 추가 |
 | `global/config/ArticleSearchEnvironment.kt` | 검색 실행 시간 제한 설정 추가 |
 | `src/main/resources/application.yaml.example` | 검색 제한 시간 예시 추가 |
@@ -272,3 +272,8 @@ MySQL 스키마와 문서 히스토리 형식은 바꾸지 않는다. 미작성 
 | `급식` | 1,980 / 20 | 2,000 | 28.94ms | 29.55ms |
 
 동일한 검색 필터를 `find`의 `explain("executionStats")`로 확인했을 때 `totalDocsExamined=2000`, `totalKeysExamined=0`, `nReturned=2000`이었다. 이는 검색 조건이 전체 문서를 스캔한다는 근거다. 순위 계산·정렬을 포함한 집계 전체의 실행 계획을 계측한 것은 아니다. 이 결과를 운영 성능 통과 기준으로 사용하지 않는다. 운영 데이터량과 동시 요청 수를 정한 뒤 별도 부하 검증이 필요하다.
+
+
+### 패키지 구조 검토 후 변경
+
+`ArticleSearchPattern`을 `global/util`로 이동했다. 저장소와 발췌 생성기가 공통 유틸리티를 참조하며, 저장소의 `service` 패키지 참조를 제거했다. 패턴 생성 로직은 변경하지 않았다. 이동 후 발췌 테스트 19개와 실제 MongoDB 테스트 14개, 총 33개를 다시 실행해 통과했다. 실패·오류·건너뜀은 0이다. `./mill spotless --check`도 통과했다.
