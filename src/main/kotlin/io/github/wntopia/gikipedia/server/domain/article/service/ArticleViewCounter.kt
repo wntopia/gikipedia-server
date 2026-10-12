@@ -61,8 +61,11 @@ class ArticleViewCounter(
         val field = articleId.toString()
         hash.get(TOTAL_KEY, field)?.let { return it.toLong() }
 
+        // 플러시가 pending을 processing으로 옮긴 뒤 MySQL에 반영하기 전이면 그 증가분은 processing에만 있다. 둘 다 더해야
+        // 누적값이 일시적으로라도 낮게 시드되지 않는다.
         val pending = hash.get(PENDING_KEY, field)?.toLong() ?: 0
-        val seeded = (articleRepository.findViewCountById(articleId) ?: 0) + pending
+        val processing = hash.get(PROCESSING_KEY, field)?.toLong() ?: 0
+        val seeded = (articleRepository.findViewCountById(articleId) ?: 0) + pending + processing
         hash.putIfAbsent(TOTAL_KEY, field, seeded.toString())
         return hash.get(TOTAL_KEY, field)?.toLong() ?: seeded
     }

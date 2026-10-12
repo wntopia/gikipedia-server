@@ -66,6 +66,20 @@ class ArticleViewCounterTest {
     }
 
     @Test
+    @DisplayName("시드할 때 플러시 중(processing)인 증가분도 더한다")
+    fun seedIncludesProcessingDelta() {
+        whenever(hash.get("article:views:total", "1")).thenReturn(null, "110")
+        whenever(hash.get("article:views:pending", "1")).thenReturn("7")
+        whenever(hash.get("article:views:processing", "1")).thenReturn("3")
+        whenever(articleRepository.findViewCountById(1L)).thenReturn(100L)
+        whenever(values.setIfAbsent(any(), any(), any<Duration>())).thenReturn(false)
+
+        counter.recordView(1L, "u:10")
+
+        verify(hash).putIfAbsent("article:views:total", "1", "110")
+    }
+
+    @Test
     @DisplayName("미반영 증가분이 없으면 비어 있는 결과를 돌려주고, 있으면 processing으로 옮겨 읽는다")
     fun drainsPending() {
         whenever(redis.hasKey("article:views:processing")).thenReturn(false)
