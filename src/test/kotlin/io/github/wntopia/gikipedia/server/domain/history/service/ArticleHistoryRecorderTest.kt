@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
@@ -168,5 +169,43 @@ class ArticleHistoryRecorderTest {
         recorder.record(article, before = "같음", after = "같음", editor = EditorIdentity(7L, "2412 홍길동"))
 
         verify(contributionRecorder, never()).recordEdit(any(), any(), any())
+    }
+
+    @Test
+    @DisplayName("편집 요약·가벼운 수정 여부·글자 수 변화를 리비전에 저장하고, 요약은 다듬어서 저장한다")
+    fun storesEditMetadataAndCharDelta() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        recorder.record(
+            article,
+            before = "가나다라",
+            after = "가나",
+            editor = EditorIdentity(7L, "2412 홍길동"),
+            metadata = EditMetadata("  오탈자 수정  ", true),
+        )
+
+        val captor = argumentCaptor<ArticleHistoryJpaEntity>()
+        verify(historyRepository, org.mockito.kotlin.times(2)).save(captor.capture())
+        val baseline = captor.firstValue
+        val edit = captor.secondValue
+        assertThat(baseline.charDelta).isEqualTo(4) // 생성 시점 4글자
+        assertThat(baseline.summary).isNull()
+        assertThat(edit.summary).isEqualTo("오탈자 수정")
+        assertThat(edit.minorEdit).isTrue()
+        assertThat(edit.charDelta).isEqualTo(-2)
+        assertThat(edit.editorUserId).isEqualTo(7L)
+    }
+
+    @Test
+    @DisplayName("요약을 보내지 않으면 null, 가벼운 수정은 false로 저장한다")
+    fun defaultsWhenMetadataOmitted() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        recorder.record(article, before = "원본", after = "수정본", editor = EditorIdentity(7L, "2412 홍길동"))
+
+        val captor = argumentCaptor<ArticleHistoryJpaEntity>()
+        verify(historyRepository, org.mockito.kotlin.times(2)).save(captor.capture())
+        assertThat(captor.secondValue.summary).isNull()
+        assertThat(captor.secondValue.minorEdit).isFalse()
     }
 }

@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.collaboration.model.Collaborati
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationCrdtStateStore
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationRoomRegistry
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.SaveCollaborativeRevisionService
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.config.CollaborationEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
@@ -163,6 +164,26 @@ class ArticleCollaborationWebSocketHandlerTest {
     }
 
     @Test
+    @DisplayName("save 메시지의 편집 요약과 가벼운 수정 여부를 저장 서비스에 그대로 넘긴다")
+    fun passesEditMetadataToSaveService() {
+        whenever(saveCollaborativeRevisionService.save(any(), any(), any(), any())).thenReturn(6)
+        val session = fakeSession("a", 1L, "2412 홍길동")
+        handler.afterConnectionEstablished(session)
+
+        val save =
+            CollaborationMessage(
+                type = CollaborationMessage.TYPE_SAVE,
+                content = "새 내용",
+                summary = "오탈자 수정",
+                minorEdit = true,
+            )
+        handler.handleMessage(session, TextMessage(objectMapper.writeValueAsString(save)))
+
+        verify(saveCollaborativeRevisionService)
+            .save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"), EditMetadata("오탈자 수정", true))
+    }
+
+    @Test
     @DisplayName("마지막 참여자가 나가면 디바운스 안전망 저장이 예약되고, 만료 시 저장 후 room/Redis를 정리한다")
     fun schedulesLeaveSafetyNetAndCleansUp() {
         val runnableCaptor = argumentCaptor<Runnable>()
@@ -230,7 +251,7 @@ class ArticleCollaborationWebSocketHandlerTest {
     @Test
     @DisplayName("save 처리 중 예외가 나도 세션을 강제 종료하지 않고 발신자에게 TYPE_ERROR를 보낸다")
     fun sendsErrorInsteadOfCrashingWhenSaveFails() {
-        whenever(saveCollaborativeRevisionService.save(any(), any(), any())).thenThrow(RuntimeException("저장 실패"))
+        whenever(saveCollaborativeRevisionService.save(any(), any(), any(), any())).thenThrow(RuntimeException("저장 실패"))
         val session = fakeSession("a", 1L, "2412 홍길동")
         handler.afterConnectionEstablished(session)
 

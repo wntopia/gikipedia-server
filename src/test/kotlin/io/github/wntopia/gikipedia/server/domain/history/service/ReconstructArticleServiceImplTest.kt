@@ -175,7 +175,7 @@ class ReconstructArticleServiceImplTest {
     @Test
     @DisplayName("listRevisions는 raw row와 압축된 스냅샷 페이로드를 병합해 압축 전과 동일한 목록을 반환한다")
     fun listRevisionsMergesCompactedPayload() {
-        val beforeCompaction = service.listRevisions(articleId)
+        val beforeCompaction = service.listRevisions(articleId, 0, 100).items
 
         // 리비전 2,3을 압축 페이로드로 대체(압축 후 상태) — raw 목록에서도 함께 제거된 것처럼 시뮬레이션.
         whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId))
@@ -191,9 +191,43 @@ class ReconstructArticleServiceImplTest {
             .thenReturn(listOf(snapshot1))
         whenever(segmentCodec.decode(payload)).thenReturn(entries)
 
-        val afterCompaction = service.listRevisions(articleId)
+        val afterCompaction = service.listRevisions(articleId, 0, 100).items
 
         assertThat(afterCompaction.map { it.revision }).isEqualTo(beforeCompaction.map { it.revision })
+    }
+
+    @Test
+    @DisplayName("listRevisions는 요청한 페이지만 잘라 전체 개수와 다음 페이지 여부를 함께 반환한다")
+    fun listRevisionsPaginates() {
+        val all = service.listRevisions(articleId, 0, 100).items
+
+        val firstPage = service.listRevisions(articleId, 0, 2)
+        val lastPage = service.listRevisions(articleId, 2, 2)
+
+        assertThat(firstPage.items.map { it.revision }).isEqualTo(all.take(2).map { it.revision })
+        assertThat(firstPage.totalElements).isEqualTo(all.size.toLong())
+        assertThat(firstPage.hasNext).isTrue()
+        assertThat(lastPage.items.map { it.revision }).isEqualTo(all.drop(4).map { it.revision })
+        assertThat(lastPage.hasNext).isFalse()
+    }
+
+    @Test
+    @DisplayName("압축된 세그먼트의 편집 요약·가벼운 수정·글자 수 변화도 목록에 그대로 나온다")
+    fun listRevisionsKeepsMetadataOfCompactedEntries() {
+        whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId)).thenReturn(emptyList())
+        val payload = byteArrayOf(9)
+        snapshot1.attachCompressedInteriorPayload(payload)
+        whenever(snapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId))
+            .thenReturn(listOf(snapshot1))
+        whenever(segmentCodec.decode(payload)).thenReturn(
+            listOf(ArticleHistorySegmentEntry(2, "2412 홍길동", "d", Instant.EPOCH, "오탈자 수정", true, -3)),
+        )
+
+        val item = service.listRevisions(articleId, 0, 10).items.single()
+
+        assertThat(item.summary).isEqualTo("오탈자 수정")
+        assertThat(item.minorEdit).isTrue()
+        assertThat(item.charDelta).isEqualTo(-3)
     }
 
     private fun history(

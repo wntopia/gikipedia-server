@@ -5,6 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_KEY_PREFIX
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
@@ -46,6 +47,7 @@ class UpdateArticleServiceImpl(
                     articleUpdateTransactionHelper.update(
                         articleId = articleId,
                         editorProvider = { authenticationReader.getEditor(session) },
+                        metadata = EditMetadata(reqDto.summary, reqDto.minorEdit),
                     ) { article ->
                         val previousContent = article.content
                         val imageUrl = uploadedImageUrl ?: article.imageUrl

@@ -39,4 +39,10 @@ class ArticleHistoryJpaEntity(
     val diff: String,
     /** 수정자의 DataGSM 계정 id. `editor` 문자열은 학년이 바뀌면 달라지므로 기여 집계는 이 값을 쓴다. 이전 데이터는 null. */
     @field:Column(name = "editor_user_id", updatable = false) val editorUserId: Long? = null,
+    /** 편집 요약. 입력하지 않았으면 null. */
+    @field:Column(name = "summary", updatable = false, length = 500) val summary: String? = null,
+    /** 가벼운 수정(오탈자 등) 여부. */
+    @field:Column(name = "minor_edit", nullable = false, updatable = false) val minorEdit: Boolean = false,
+    /** 직전 리비전 대비 글자 수 변화(추가면 양수, 삭제면 음수). 이 기능 이전 데이터는 null. */
+    @field:Column(name = "char_delta", updatable = false) val charDelta: Int? = null,
 ) : BaseJpaEntity()

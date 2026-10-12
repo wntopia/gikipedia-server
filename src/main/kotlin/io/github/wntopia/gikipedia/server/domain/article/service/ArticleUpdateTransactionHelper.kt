@@ -3,6 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.springframework.http.HttpStatus
@@ -28,6 +29,7 @@ class ArticleUpdateTransactionHelper(
     fun update(
         articleId: Long,
         editorProvider: () -> EditorIdentity,
+        metadata: EditMetadata = EditMetadata.NONE,
         mutate: (ArticleJpaEntity) -> Pair<String, String>,
     ): Pair<ArticleResDto, Int?> {
         val article =
@@ -36,7 +38,7 @@ class ArticleUpdateTransactionHelper(
 
         val editor = editorProvider()
         val (before, after) = mutate(article)
-        val revision = articleHistoryRecorder.record(article, before, after, editor)
+        val revision = articleHistoryRecorder.record(article, before, after, editor, metadata)
 
         val response = ArticleResDto.from(article)
         articleCacheStore.putAfterCommit(response)

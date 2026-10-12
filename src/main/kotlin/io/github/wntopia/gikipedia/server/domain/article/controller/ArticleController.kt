@@ -122,6 +122,7 @@ class ArticleController(
         description =
             "문서 본문을 교체하고, 이미지를 함께 보내면 대표 이미지도 교체한다(안 보내면 기존 이미지 유지). " +
                 "로그인한 학생 계정만 가능하며 수정할 때마다 새 리비전이 생성된다. 제목은 수정할 수 없다. " +
+                "편집 요약(`summary`, 최대 500자)과 가벼운 수정 여부(`minorEdit`)를 선택적으로 함께 보낼 수 있다. " +
                 "`multipart/form-data`로 전송하며 이미지는 최대 10MB.",
     )
     @ApiResponses(

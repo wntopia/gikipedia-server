@@ -10,6 +10,7 @@ import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryC
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistorySegmentCodec
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
+import io.github.wntopia.gikipedia.server.global.dto.PageResDto
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -66,6 +67,9 @@ class ReconstructArticleServiceImpl(
             editor = resolved.editor,
             editedAt = resolved.editedAt,
             latest = revision == latestRevision,
+            summary = resolved.summary,
+            minorEdit = resolved.minorEdit,
+            charDelta = resolved.charDelta,
         )
     }
 
@@ -86,7 +90,14 @@ class ReconstructArticleServiceImpl(
             val target =
                 articleHistoryRepository.findByArticleIdAndRevision(articleId, revision)
                     ?: throw ExpectedException("존재하지 않는 리비전입니다.", HttpStatus.NOT_FOUND)
-            return ResolvedRevision(snapshot.content, target.editor, target.createdAt)
+            return ResolvedRevision(
+                snapshot.content,
+                target.editor,
+                target.createdAt,
+                target.summary,
+                target.minorEdit,
+                target.charDelta,
+            )
         }
 
         val neededCount = revision - snapshot.revision
@@ -100,7 +111,14 @@ class ReconstructArticleServiceImpl(
         if (rawDiffs.size == neededCount) {
             val content = rawDiffs.fold(snapshot.content) { acc, history -> articleDiff.apply(acc, history.diff) }
             val target = rawDiffs.last()
-            return ResolvedRevision(content, target.editor, target.createdAt)
+            return ResolvedRevision(
+                content,
+                target.editor,
+                target.createdAt,
+                target.summary,
+                target.minorEdit,
+                target.charDelta,
+            )
         }
 
         // raw row가 부족함 = 해당 interior 구간이 이미 압축됨. snapshot 자신에 붙은 페이로드에서 복원한다.
@@ -115,11 +133,22 @@ class ReconstructArticleServiceImpl(
             entries
                 .filter { it.revision <= revision }
                 .fold(snapshot.content) { acc, entry -> articleDiff.apply(acc, entry.diff) }
-        return ResolvedRevision(content, target.editor, target.createdAt)
+        return ResolvedRevision(
+            content,
+            target.editor,
+            target.createdAt,
+            target.summary,
+            target.minorEdit,
+            target.charDelta,
+        )
     }
 
     @Transactional(readOnly = true)
-    override fun listRevisions(articleId: Long): List<ArticleRevisionSummaryResDto> {
+    override fun listRevisions(
+        articleId: Long,
+        page: Int,
+        size: Int,
+    ): PageResDto<ArticleRevisionSummaryResDto> {
         if (!articleRepository.existsById(articleId)) {
             throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
         }
@@ -139,17 +168,24 @@ class ReconstructArticleServiceImpl(
                         revision = entry.revision,
                         editor = entry.editor,
                         editedAt = entry.createdAt,
+                        summary = entry.summary,
+                        minorEdit = entry.minorEdit,
+                        charDelta = entry.charDelta,
                     )
                 }
             }
 
-        return (rawSummaries + compactedSummaries).sortedByDescending { it.revision }
+        // 압축 구간과 raw 행을 합쳐야 전체 개수와 순서를 알 수 있어서, 메타데이터만 병합한 뒤 요청 페이지를 잘라낸다.
+        return PageResDto.sliceOf((rawSummaries + compactedSummaries).sortedByDescending { it.revision }, page, size)
     }
 
     private data class ResolvedRevision(
         val content: String,
         val editor: String,
         val editedAt: Instant?,
+        val summary: String?,
+        val minorEdit: Boolean,
+        val charDelta: Int?,
     )
 
     companion object {

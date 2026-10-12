@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.history.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleHistoryJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
@@ -43,6 +44,7 @@ class ArticleHistoryRecorder(
         before: String,
         after: String,
         editor: EditorIdentity,
+        metadata: EditMetadata = EditMetadata.NONE,
     ): Int? {
         val articleId = requireNotNull(article.id)
         val diff = articleDiff.generate(before, after)
@@ -57,12 +59,19 @@ class ArticleHistoryRecorder(
 
         if (lastRevision == null) {
             // 최초 수정: 생성 시점 내용을 리비전 1 스냅샷으로 baseline 확정한다.
-            appendHistory(article, BASELINE_REVISION, editor, articleDiff.generate("", before))
+            appendHistory(
+                article,
+                BASELINE_REVISION,
+                editor,
+                articleDiff.generate("", before),
+                EditMetadata.NONE,
+                before.length,
+            )
             saveSnapshot(article, BASELINE_REVISION, before)
         }
 
         val newRevision = (lastRevision ?: BASELINE_REVISION) + 1
-        appendHistory(article, newRevision, editor, diff)
+        appendHistory(article, newRevision, editor, diff, metadata.normalized(), after.length - before.length)
         contributionRecorder.recordEdit(editor.userId, articleId, newRevision)
         if (isSnapshotRevision(newRevision)) {
             saveSnapshot(article, newRevision, after)
@@ -100,8 +109,21 @@ class ArticleHistoryRecorder(
         revision: Int,
         editor: EditorIdentity,
         diff: String,
+        metadata: EditMetadata,
+        charDelta: Int,
     ) {
-        articleHistoryRepository.save(ArticleHistoryJpaEntity(article, revision, editor.label, diff, editor.userId))
+        articleHistoryRepository.save(
+            ArticleHistoryJpaEntity(
+                article,
+                revision,
+                editor.label,
+                diff,
+                editor.userId,
+                metadata.summary,
+                metadata.minorEdit,
+                charDelta,
+            ),
+        )
     }
 
     private fun saveSnapshot(

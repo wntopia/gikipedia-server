@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.collaboration.model.Collaborati
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationCrdtStateStore
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationRoomRegistry
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.SaveCollaborativeRevisionService
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.config.CollaborationEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
@@ -160,7 +161,13 @@ class ArticleCollaborationWebSocketHandler(
         val editor = editorsBySessionId[sessionId] ?: return
         val plainText = incoming.content ?: return
 
-        val revision = saveCollaborativeRevisionService.save(articleId, plainText, editor)
+        val revision =
+            saveCollaborativeRevisionService.save(
+                articleId,
+                plainText,
+                editor,
+                EditMetadata(incoming.summary, incoming.minorEdit ?: false),
+            )
         room.rememberSync(plainText, editor)
         room.broadcast(CollaborationMessage(type = CollaborationMessage.TYPE_SAVED, revision = revision))
     }
