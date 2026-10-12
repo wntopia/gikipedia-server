@@ -18,6 +18,6 @@ class QueryAuthStatusServiceImpl(
         val userInfo =
             authenticationReader.getCurrentUser(session)
                 ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
-        return AuthStatusResDto(true, userInfo, userRegistrar.register(userInfo)?.createdAt)
+        return AuthStatusResDto(true, userInfo, userRegistrar.findOrRegister(userInfo)?.createdAt)
     }
 }

@@ -12,14 +12,12 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.HttpSession
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "User", description = "로그인한 사용자 본인의 기여 통계·목록 API. 모두 로그인(세션 쿠키)이 필요하다.")
-@Validated
 @RestController
 @RequestMapping("/api/v1/users/me")
 class UserController(

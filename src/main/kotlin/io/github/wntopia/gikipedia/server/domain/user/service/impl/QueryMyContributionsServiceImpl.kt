@@ -24,7 +24,8 @@ class QueryMyContributionsServiceImpl(
         val userInfo =
             authenticationReader.getCurrentUser(session)
                 ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
-        val user = userRegistrar.register(userInfo) ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
+        val user =
+            userRegistrar.findOrRegister(userInfo) ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
         return contributionRepository
             .findRecentByUserId(user.datagsmUserId, PageRequest.of(0, limit))
             .map(ContributionResDto::from)

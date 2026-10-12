@@ -26,7 +26,8 @@ class QueryMyContributionStatsServiceImpl(
             authenticationReader.getCurrentUser(session)
                 ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
         // 이 기능 배포 전에 로그인한 세션은 사용자 레코드가 아직 없을 수 있어 여기서도 보장한다.
-        val user = userRegistrar.register(userInfo) ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
+        val user =
+            userRegistrar.findOrRegister(userInfo) ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
         val userId = user.datagsmUserId
         val startOfToday = LocalDate.now(clock.withZone(KST)).atStartOfDay(KST).toInstant()
 

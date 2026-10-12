@@ -48,7 +48,7 @@ class QueryMyContributionStatsServiceImplTest {
     fun countsTodayFromKstMidnight() {
         val kstMidnight = Instant.parse("2026-10-12T15:00:00Z")
         whenever(authenticationReader.getCurrentUser(session)).thenReturn(userInfo)
-        whenever(userRegistrar.register(userInfo)).thenReturn(UserJpaEntity(10L, "홍길동", "USER"))
+        whenever(userRegistrar.findOrRegister(userInfo)).thenReturn(UserJpaEntity(10L, "홍길동", "USER"))
         whenever(contributionRepository.countByUserIdAndType(10L, ContributionType.EDIT)).thenReturn(42)
         whenever(contributionRepository.countByUserIdAndType(10L, ContributionType.CREATE)).thenReturn(3)
         whenever(
