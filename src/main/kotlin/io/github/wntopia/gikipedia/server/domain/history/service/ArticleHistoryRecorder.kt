@@ -106,6 +106,8 @@ class ArticleHistoryRecorder(
             imageUrl = article.imageUrl,
             createdAt = requireNotNull(article.createdAt) { "article.createdAt이 null입니다 (articleId=$articleId)" },
             updatedAt = requireNotNull(article.updatedAt) { "article.updatedAt이 null입니다 (articleId=$articleId)" },
+            categoryId = article.category?.id,
+            categoryName = article.category?.name,
         )
 
     /** 리비전 1과 이후 snapshotInterval 간격마다 스냅샷을 남긴다(예: interval=10 → 1, 11, 21...). */

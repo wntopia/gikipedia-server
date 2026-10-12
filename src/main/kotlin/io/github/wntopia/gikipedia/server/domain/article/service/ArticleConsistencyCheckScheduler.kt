@@ -115,6 +115,8 @@ class ArticleConsistencyCheckScheduler(
                 imageUrl = article.imageUrl,
                 articleCreatedAt = createdAt,
                 articleUpdatedAt = updatedAt,
+                categoryId = article.category?.id,
+                categoryName = article.category?.name,
             )
         } catch (e: Exception) {
             log.error("article {} 복구 중 실패, 다음 article은 계속 진행", articleId, e)

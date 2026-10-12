@@ -7,6 +7,7 @@ import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepos
 import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_KEY_PREFIX
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
+import io.github.wntopia.gikipedia.server.domain.category.repository.CategoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
@@ -30,6 +31,7 @@ class CreateArticleServiceImpl(
     private val authenticationReader: AuthenticationReader,
     private val contributionRecorder: ContributionRecorder,
     private val articleLinkIndexer: ArticleLinkIndexer,
+    private val categoryRepository: CategoryRepository,
 ) : CreateArticleService {
     @Transactional
     override fun execute(
@@ -41,6 +43,12 @@ class CreateArticleServiceImpl(
 
         // 비로그인 생성도 허용하므로 로그인한 경우에만 생성자를 기록한다.
         val createdByUserId = authenticationReader.getCurrentUser(session)?.id
+        val category =
+            reqDto.categoryId?.let {
+                categoryRepository.findById(it).orElseThrow {
+                    ExpectedException("존재하지 않는 분류입니다.", HttpStatus.NOT_FOUND)
+                }
+            }
         val imageUrl =
             reqDto.image?.takeIf { !it.isEmpty }?.let {
                 seaweedUploader.upload(
@@ -52,7 +60,9 @@ class CreateArticleServiceImpl(
         val saved =
             try {
                 articleRepository.saveAndFlush(
-                    ArticleJpaEntity(title, reqDto.content, imageUrl, createdByUserId = createdByUserId),
+                    ArticleJpaEntity(title, reqDto.content, imageUrl, createdByUserId = createdByUserId).also {
+                        it.changeCategory(category)
+                    },
                 )
             } catch (e: DataIntegrityViolationException) {
                 throw duplicateTitle()
@@ -72,6 +82,8 @@ class CreateArticleServiceImpl(
                 imageUrl = saved.imageUrl,
                 createdAt = requireNotNull(saved.createdAt) { "saved.createdAt이 null입니다 (articleId=${saved.id})" },
                 updatedAt = requireNotNull(saved.updatedAt) { "saved.updatedAt이 null입니다 (articleId=${saved.id})" },
+                categoryId = category?.id,
+                categoryName = category?.name,
             ),
         )
 

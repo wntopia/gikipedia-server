@@ -75,7 +75,10 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer, never()).sync(any(), any(), any(), any(), any(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+            never(),
+        ).sync(any(), any(), any(), any(), any(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -88,7 +91,9 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer).sync(eq(1L), eq(5), eq("제목"), eq("내용"), eq(null), any(), any())
+        verify(
+            articleMongoSynchronizer,
+        ).sync(eq(1L), eq(5), eq("제목"), eq("내용"), eq(null), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -100,7 +105,9 @@ class ArticleConsistencyCheckSchedulerTest {
         scheduler.checkAndRepair()
 
         // 히스토리가 없는(=한 번도 수정 안 된) 문서의 정답 리비전은 1이다.
-        verify(articleMongoSynchronizer).sync(eq(1L), eq(1), any(), any(), anyOrNull(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+        ).sync(eq(1L), eq(1), any(), any(), anyOrNull(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -114,7 +121,10 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer, never()).sync(any(), any(), any(), any(), any(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+            never(),
+        ).sync(any(), any(), any(), any(), any(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test

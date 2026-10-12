@@ -18,4 +18,6 @@ data class UpdateArticleReqDto(
     val summary: String? = null,
     @field:Schema(description = "가벼운 수정 여부 (선택, 기본 false)", example = "false")
     val minorEdit: Boolean = false,
+    @field:Schema(description = "바꿀 문서 분류 ID (선택, 생략하면 기존 분류 유지). 분류를 비우는 기능은 지원하지 않는다.", example = "1")
+    val categoryId: Long? = null,
 )

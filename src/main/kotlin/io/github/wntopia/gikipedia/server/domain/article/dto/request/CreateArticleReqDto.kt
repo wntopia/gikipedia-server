@@ -15,4 +15,6 @@ data class CreateArticleReqDto(
     val content: String,
     @field:Schema(description = "대표 이미지 파일 (선택, 최대 10MB)")
     val image: MultipartFile? = null,
+    @field:Schema(description = "문서 분류 ID (선택). 분류 목록 API로 확인한다.", example = "1")
+    val categoryId: Long? = null,
 )

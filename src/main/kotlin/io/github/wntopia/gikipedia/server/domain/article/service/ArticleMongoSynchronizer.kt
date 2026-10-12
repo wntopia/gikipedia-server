@@ -34,6 +34,8 @@ class ArticleMongoSynchronizer(
         imageUrl: String?,
         articleCreatedAt: Instant,
         articleUpdatedAt: Instant,
+        categoryId: Long? = null,
+        categoryName: String? = null,
     ) {
         val byDocumentId = Query(Criteria.where("document_id").`is`(articleId))
         val upsert =
@@ -45,6 +47,8 @@ class ArticleMongoSynchronizer(
                 .setOnInsert("image_url", imageUrl)
                 .setOnInsert("article_created_at", articleCreatedAt)
                 .setOnInsert("article_updated_at", articleUpdatedAt)
+                .setOnInsert("category_id", categoryId)
+                .setOnInsert("category_name", categoryName)
 
         val result =
             try {
@@ -77,7 +81,9 @@ class ArticleMongoSynchronizer(
                 .set("content", content)
                 .set("image_url", imageUrl)
                 .set("article_created_at", articleCreatedAt)
-                .set("article_updated_at", articleUpdatedAt),
+                .set("article_updated_at", articleUpdatedAt)
+                .set("category_id", categoryId)
+                .set("category_name", categoryName),
             ArticleMongoEntity::class.java,
         )
     }

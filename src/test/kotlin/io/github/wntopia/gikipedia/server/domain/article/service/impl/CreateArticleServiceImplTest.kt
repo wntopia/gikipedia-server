@@ -5,6 +5,9 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmUserInfoResDto
+import io.github.wntopia.gikipedia.server.domain.category.dto.response.CategoryResDto
+import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEntity
+import io.github.wntopia.gikipedia.server.domain.category.repository.CategoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
@@ -38,6 +41,7 @@ class CreateArticleServiceImplTest {
     private val authenticationReader = mock<AuthenticationReader>()
     private val contributionRecorder = mock<ContributionRecorder>()
     private val articleLinkIndexer = mock<ArticleLinkIndexer>()
+    private val categoryRepository = mock<CategoryRepository>()
     private val session = mock<HttpSession>()
 
     private val service =
@@ -49,6 +53,7 @@ class CreateArticleServiceImplTest {
             authenticationReader,
             contributionRecorder,
             articleLinkIndexer,
+            categoryRepository,
         )
 
     @BeforeEach
@@ -153,5 +158,36 @@ class CreateArticleServiceImplTest {
         service.execute(CreateArticleReqDto(title = "제목", content = "[[다른 문서]] 참고"), session)
 
         verify(articleLinkIndexer).reindex(1L, "제목", "[[다른 문서]] 참고")
+    }
+
+    @Test
+    @DisplayName("분류를 지정하면 문서에 분류가 붙고 동기화 이벤트에도 분류가 실린다")
+    fun attachesCategory() {
+        val category = CategoryJpaEntity("학교").also { ReflectionTestUtils.setField(it, "id", 3L) }
+        whenever(categoryRepository.findById(3L)).thenReturn(java.util.Optional.of(category))
+
+        val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용", categoryId = 3L), session)
+
+        assertThat(response.category).isEqualTo(CategoryResDto(3L, "학교"))
+        val captor = argumentCaptor<ArticleUpdatedEvent>()
+        verify(eventPublisher).publishEvent(captor.capture())
+        assertThat(captor.firstValue.categoryId).isEqualTo(3L)
+        assertThat(captor.firstValue.categoryName).isEqualTo("학교")
+    }
+
+    @Test
+    @DisplayName("없는 분류를 지정하면 이미지를 올리기 전에 404를 던진다")
+    fun rejectsUnknownCategory() {
+        whenever(categoryRepository.findById(99L)).thenReturn(java.util.Optional.empty())
+
+        assertThatThrownBy {
+            service.execute(
+                CreateArticleReqDto(title = "제목", content = "내용", categoryId = 99L),
+                session,
+            )
+        }.isInstanceOfSatisfying(ExpectedException::class.java) {
+            assertThat(it.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+        verify(seaweedUploader, never()).upload(any(), any())
     }
 }

@@ -12,6 +12,18 @@ import org.springframework.data.repository.query.Param
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun existsByTitle(title: String): Boolean
 
+    /** 분류에 속한 문서를 최근 수정 순으로. 본문은 읽지 않는다. */
+    @Query(
+        value =
+            "SELECT a.id AS id, a.title AS title, a.createdAt AS createdAt, a.updatedAt AS updatedAt " +
+                "FROM ArticleJpaEntity a WHERE a.category.id = :categoryId ORDER BY a.updatedAt DESC, a.id DESC",
+        countQuery = "SELECT COUNT(a) FROM ArticleJpaEntity a WHERE a.category.id = :categoryId",
+    )
+    fun findByCategory(
+        @Param("categoryId") categoryId: Long,
+        pageable: Pageable,
+    ): Page<ArticleRecentView>
+
     /** 최근에 수정된 문서 순(수정 시각 내림차순). 본문은 읽지 않는다. */
     @Query(
         value =

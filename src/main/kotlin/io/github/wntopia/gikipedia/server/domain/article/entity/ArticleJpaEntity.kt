@@ -1,5 +1,6 @@
 package io.github.wntopia.gikipedia.server.domain.article.entity
 
+import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEntity
 import io.github.wntopia.gikipedia.server.global.entity.BaseJpaEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -35,6 +36,15 @@ class ArticleJpaEntity(
     @field:Column(name = "image_url", length = 2048)
     var imageUrl: String? = imageUrl
         protected set
+
+    @field:ManyToOne(fetch = FetchType.LAZY)
+    @field:JoinColumn(name = "category_id")
+    var category: CategoryJpaEntity? = null
+        protected set
+
+    fun changeCategory(category: CategoryJpaEntity?) {
+        this.category = category
+    }
 
     /** title은 생성 시점에만 정해지고 이후 수정 불가능하다 — 여기서 받지 않는다. */
     fun update(
