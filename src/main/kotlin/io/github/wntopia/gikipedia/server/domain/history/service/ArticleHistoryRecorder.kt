@@ -6,7 +6,9 @@ import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJ
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
+import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.stereotype.Component
@@ -23,6 +25,7 @@ class ArticleHistoryRecorder(
     private val articleSnapshotRepository: ArticleSnapshotRepository,
     private val articleDiff: ArticleDiff,
     private val eventPublisher: ApplicationEventPublisher,
+    private val contributionRecorder: ContributionRecorder,
     @param:Value("\${article.snapshot.interval:10}") private val snapshotInterval: Int,
 ) {
     /**
@@ -39,7 +42,7 @@ class ArticleHistoryRecorder(
         article: ArticleJpaEntity,
         before: String,
         after: String,
-        editor: String,
+        editor: EditorIdentity,
     ): Int? {
         val articleId = requireNotNull(article.id)
         val diff = articleDiff.generate(before, after)
@@ -60,6 +63,7 @@ class ArticleHistoryRecorder(
 
         val newRevision = (lastRevision ?: BASELINE_REVISION) + 1
         appendHistory(article, newRevision, editor, diff)
+        contributionRecorder.recordEdit(editor.userId, articleId, newRevision)
         if (isSnapshotRevision(newRevision)) {
             saveSnapshot(article, newRevision, after)
         }
@@ -94,10 +98,10 @@ class ArticleHistoryRecorder(
     private fun appendHistory(
         article: ArticleJpaEntity,
         revision: Int,
-        editor: String,
+        editor: EditorIdentity,
         diff: String,
     ) {
-        articleHistoryRepository.save(ArticleHistoryJpaEntity(article, revision, editor, diff))
+        articleHistoryRepository.save(ArticleHistoryJpaEntity(article, revision, editor.label, diff, editor.userId))
     }
 
     private fun saveSnapshot(

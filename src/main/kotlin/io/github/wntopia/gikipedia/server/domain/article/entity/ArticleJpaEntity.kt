@@ -21,6 +21,8 @@ class ArticleJpaEntity(
     @field:ManyToOne(fetch = FetchType.LAZY)
     @field:JoinColumn(name = "parent_id")
     val parent: ArticleJpaEntity? = null,
+    /** 문서를 만든 사용자의 DataGSM 계정 id. 비로그인 생성이거나 이전 데이터면 null. */
+    @field:Column(name = "created_by_user_id", updatable = false) val createdByUserId: Long? = null,
 ) : BaseJpaEntity() {
     @field:Column(name = "title", nullable = false, length = 255)
     var title: String = title

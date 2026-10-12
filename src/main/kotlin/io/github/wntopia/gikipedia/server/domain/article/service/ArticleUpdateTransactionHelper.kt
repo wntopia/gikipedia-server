@@ -4,6 +4,7 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -26,7 +27,7 @@ class ArticleUpdateTransactionHelper(
 ) {
     fun update(
         articleId: Long,
-        editorProvider: () -> String,
+        editorProvider: () -> EditorIdentity,
         mutate: (ArticleJpaEntity) -> Pair<String, String>,
     ): Pair<ArticleResDto, Int?> {
         val article =

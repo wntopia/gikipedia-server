@@ -45,7 +45,7 @@ class UpdateArticleServiceImpl(
                 transactionTemplate.execute {
                     articleUpdateTransactionHelper.update(
                         articleId = articleId,
-                        editorProvider = { authenticationReader.getEditorLabel(session) },
+                        editorProvider = { authenticationReader.getEditor(session) },
                     ) { article ->
                         val previousContent = article.content
                         val imageUrl = uploadedImageUrl ?: article.imageUrl

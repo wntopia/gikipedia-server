@@ -7,9 +7,11 @@ import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmClubSu
 import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmStudentInfoResDto
 import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmUserInfoResDto
 import io.github.wntopia.gikipedia.server.domain.auth.service.SigninService
+import io.github.wntopia.gikipedia.server.domain.user.service.UserRegistrar
 import io.github.wntopia.gikipedia.server.global.config.DataGsmOAuthEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.OAuthSessionAttributes
 import jakarta.servlet.http.HttpSession
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -31,7 +33,10 @@ import java.time.Instant
 class SigninServiceImpl(
     private val environment: DataGsmOAuthEnvironment,
     private val client: DataGsmOAuthClient,
+    private val userRegistrar: UserRegistrar,
 ) : SigninService {
+    private val log = LoggerFactory.getLogger(javaClass)
+
     override fun execute(
         reqDto: DataGsmOAuthCallbackReqDto,
         session: HttpSession,
@@ -89,7 +94,21 @@ class SigninServiceImpl(
         session.setAttribute(OAuthSessionAttributes.DATAGSM_TOKEN, token)
         session.setAttribute(OAuthSessionAttributes.DATAGSM_SESSION, dataGsmSession)
 
+        registerUser(userInfo)
+
         return userInfo
+    }
+
+    /**
+     * 가입(사용자 레코드 생성)은 로그인 성공을 막지 않는다. 실패해도 `/auth/me`와 기여 통계 조회 시점에 다시
+     * 보장되므로 로그만 남기고 넘어간다.
+     */
+    private fun registerUser(userInfo: DataGsmUserInfoResDto) {
+        try {
+            userRegistrar.register(userInfo)
+        } catch (exception: RuntimeException) {
+            log.warn("로그인 사용자 레코드 저장 실패 (datagsmUserId={})", userInfo.id, exception)
+        }
     }
 
     private fun redirect(uri: URI): ResponseEntity<Void> =

@@ -8,6 +8,7 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheSto
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
 import org.assertj.core.api.Assertions.assertThat
@@ -59,7 +60,7 @@ class UpdateArticleImageServiceImplTest {
         ReflectionTestUtils.setField(article, "createdAt", Instant.now())
         ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(article)
-        whenever(authenticationReader.getEditorLabel(session)).thenReturn("2412 홍길동")
+        whenever(authenticationReader.getEditor(session)).thenReturn(EditorIdentity(1L, "2412 홍길동"))
         whenever(image.isEmpty).thenReturn(false)
         whenever(seaweedUploader.upload(image, "articles")).thenReturn("new.png")
         // TransactionTemplate.execute는 실제 트랜잭션 매니저 없이, 콜백을 그 자리에서 바로 실행하는 것으로 대체한다.
@@ -106,7 +107,7 @@ class UpdateArticleImageServiceImplTest {
     fun recordsWithoutContentChangeForEventReplay() {
         service.execute(1L, UpdateArticleImageReqDto(image), session)
 
-        verify(articleHistoryRecorder).record(article, "본문", "본문", "2412 홍길동")
+        verify(articleHistoryRecorder).record(article, "본문", "본문", EditorIdentity(1L, "2412 홍길동"))
     }
 
     @Test

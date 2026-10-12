@@ -37,4 +37,6 @@ class ArticleHistoryJpaEntity(
     /** 이전 리비전 대비 변경분. unified diff(패치) 문자열. */
     @field:Column(name = "diff", nullable = false, updatable = false, columnDefinition = "TEXT")
     val diff: String,
+    /** 수정자의 DataGSM 계정 id. `editor` 문자열은 학년이 바뀌면 달라지므로 기여 집계는 이 값을 쓴다. 이전 데이터는 null. */
+    @field:Column(name = "editor_user_id", updatable = false) val editorUserId: Long? = null,
 ) : BaseJpaEntity()

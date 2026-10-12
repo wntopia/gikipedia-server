@@ -1,5 +1,6 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.model
 
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.slf4j.LoggerFactory
 import org.springframework.web.socket.TextMessage
 import org.springframework.web.socket.WebSocketSession
@@ -23,8 +24,8 @@ class CollaborationRoom(
     var lastKnownPlainText: String? = null
         private set
 
-    /** 위 내용을 마지막으로 보낸 편집자 라벨("학번 이름") — 안전망 저장 시 editor로 사용. */
-    var lastEditorLabel: String? = null
+    /** 위 내용을 마지막으로 보낸 편집자 — 안전망 저장 시 editor로 사용. */
+    var lastEditor: EditorIdentity? = null
         private set
 
     private var pendingLeaveSafetyNet: ScheduledFuture<*>? = null
@@ -47,10 +48,10 @@ class CollaborationRoom(
     @Synchronized
     fun rememberSync(
         plainText: String,
-        editor: String,
+        editor: EditorIdentity,
     ) {
         lastKnownPlainText = plainText
-        lastEditorLabel = editor
+        lastEditor = editor
     }
 
     @Synchronized

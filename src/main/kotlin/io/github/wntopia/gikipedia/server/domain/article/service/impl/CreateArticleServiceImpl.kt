@@ -8,8 +8,11 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_K
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
+import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
+import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import io.github.wntopia.gikipedia.server.global.text.TitleNormalizer
+import jakarta.servlet.http.HttpSession
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -23,12 +26,19 @@ class CreateArticleServiceImpl(
     private val seaweedUploader: SeaweedUploader,
     private val eventPublisher: ApplicationEventPublisher,
     private val articleCacheStore: ArticleCacheStore,
+    private val authenticationReader: AuthenticationReader,
+    private val contributionRecorder: ContributionRecorder,
 ) : CreateArticleService {
     @Transactional
-    override fun execute(reqDto: CreateArticleReqDto): ArticleResDto {
+    override fun execute(
+        reqDto: CreateArticleReqDto,
+        session: HttpSession,
+    ): ArticleResDto {
         val title = TitleNormalizer.normalize(reqDto.title)
         if (title.isEmpty() || articleRepository.existsByTitle(title)) throw duplicateTitle()
 
+        // 비로그인 생성도 허용하므로 로그인한 경우에만 생성자를 기록한다.
+        val createdByUserId = authenticationReader.getCurrentUser(session)?.id
         val imageUrl =
             reqDto.image?.takeIf { !it.isEmpty }?.let {
                 seaweedUploader.upload(
@@ -39,10 +49,14 @@ class CreateArticleServiceImpl(
         // 사전 확인과 저장 사이에 같은 제목이 끼어드는 경합은 유니크 제약이 막는다 — 즉시 flush해 여기서 409로 변환한다.
         val saved =
             try {
-                articleRepository.saveAndFlush(ArticleJpaEntity(title, reqDto.content, imageUrl))
+                articleRepository.saveAndFlush(
+                    ArticleJpaEntity(title, reqDto.content, imageUrl, createdByUserId = createdByUserId),
+                )
             } catch (e: DataIntegrityViolationException) {
                 throw duplicateTitle()
             }
+
+        contributionRecorder.recordCreate(createdByUserId, requireNotNull(saved.id))
 
         // article_histories의 리비전 체계("리비전 1 = 생성 시점 그대로")와 맞춰, Mongo 뷰도 생성 시점에
         // 리비전 1로 채워둔다. 이걸 빼먹으면 한 번도 수정 안 된 문서는 Mongo에 영영 없는 상태로 남는다.

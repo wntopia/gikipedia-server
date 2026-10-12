@@ -51,6 +51,7 @@ class ArticleController(
         description =
             "제목·본문·대표 이미지(선택)로 새 문서를 만든다. `multipart/form-data`로 전송하며 이미지는 최대 10MB. " +
                 "생성된 문서는 리비전 1로 히스토리에 기록되고, 제목은 이후 수정할 수 없다. " +
+                "로그인한 상태로 만들면 생성자가 기록되어 내 기여 통계의 '새로 만든 문서 수'에 반영된다. " +
                 "제목은 앞뒤 공백 제거·유니코드(NFC) 정규화·연속 공백 축소 후 저장되며, 대소문자 구분 없이 유일해야 한다.",
     )
     @ApiResponses(
@@ -64,7 +65,8 @@ class ArticleController(
     @PostMapping(consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun create(
         @Valid @ModelAttribute reqDto: CreateArticleReqDto,
-    ): CommonApiResponse<ArticleResDto> = CommonApiResponse.created("", createArticleService.execute(reqDto))
+        @Parameter(hidden = true) session: HttpSession,
+    ): CommonApiResponse<ArticleResDto> = CommonApiResponse.created("", createArticleService.execute(reqDto, session))
 
     @Operation(
         summary = "제목으로 문서 조회",

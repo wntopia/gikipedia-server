@@ -8,6 +8,7 @@ import io.github.wntopia.gikipedia.server.domain.collaboration.service.Collabora
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.SaveCollaborativeRevisionService
 import io.github.wntopia.gikipedia.server.global.config.CollaborationEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -77,7 +78,7 @@ class ArticleCollaborationWebSocketHandlerTest {
         whenever(session.uri).thenReturn(URI.create("ws://localhost/ws/articles/$articleId/collaboration"))
         whenever(session.attributes).thenReturn(attributes)
         whenever(session.isOpen).thenReturn(true)
-        whenever(authenticationReader.getEditorLabel(attributes)).thenReturn(editor)
+        whenever(authenticationReader.getEditor(attributes)).thenReturn(EditorIdentity(1L, editor))
         return session
     }
 
@@ -147,7 +148,7 @@ class ArticleCollaborationWebSocketHandlerTest {
     @Test
     @DisplayName("save 메시지를 받으면 저장 서비스를 호출하고 room 전체에 saved를 브로드캐스트한다")
     fun savesAndBroadcastsSaved() {
-        whenever(saveCollaborativeRevisionService.save(1L, "새 내용", "2412 홍길동")).thenReturn(5)
+        whenever(saveCollaborativeRevisionService.save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"))).thenReturn(5)
         val sessionA = fakeSession("a", 1L, "2412 홍길동")
         val sessionB = fakeSession("b", 1L, "2413 김철수")
         handler.afterConnectionEstablished(sessionA)
@@ -156,7 +157,7 @@ class ArticleCollaborationWebSocketHandlerTest {
         val save = CollaborationMessage(type = CollaborationMessage.TYPE_SAVE, content = "새 내용")
         handler.handleMessage(sessionA, TextMessage(objectMapper.writeValueAsString(save)))
 
-        verify(saveCollaborativeRevisionService).save(1L, "새 내용", "2412 홍길동")
+        verify(saveCollaborativeRevisionService).save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"))
         assertThat(messagesSentTo(sessionA)).anyMatch { it.type == CollaborationMessage.TYPE_SAVED && it.revision == 5 }
         assertThat(messagesSentTo(sessionB)).anyMatch { it.type == CollaborationMessage.TYPE_SAVED && it.revision == 5 }
     }
@@ -179,7 +180,7 @@ class ArticleCollaborationWebSocketHandlerTest {
         // 실제 벽시계 대기 없이, 예약된 안전망 작업을 결정론적으로 직접 실행한다.
         runnableCaptor.firstValue.run()
 
-        verify(saveCollaborativeRevisionService).save(1L, "마지막 내용", "2412 홍길동")
+        verify(saveCollaborativeRevisionService).save(1L, "마지막 내용", EditorIdentity(1L, "2412 홍길동"))
         verify(collaborationCrdtStateStore).delete(1L)
         assertThat(collaborationRoomRegistry.findIfActive(1L)).isNull()
     }

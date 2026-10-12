@@ -6,7 +6,9 @@ import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJ
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleHistoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.repository.ArticleSnapshotRepository
+import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -27,10 +29,18 @@ class ArticleHistoryRecorderTest {
     private val historyRepository = mock<ArticleHistoryRepository>()
     private val snapshotRepository = mock<ArticleSnapshotRepository>()
     private val eventPublisher = mock<ApplicationEventPublisher>()
+    private val contributionRecorder = mock<ContributionRecorder>()
 
     // snapshotInterval = 3 → 스냅샷 리비전: 1, 4, 7...
     private val recorder =
-        ArticleHistoryRecorder(historyRepository, snapshotRepository, articleDiff, eventPublisher, 3)
+        ArticleHistoryRecorder(
+            historyRepository,
+            snapshotRepository,
+            articleDiff,
+            eventPublisher,
+            contributionRecorder,
+            3,
+        )
 
     private val article = ArticleJpaEntity(title = "제목", content = "무관")
 
@@ -48,7 +58,13 @@ class ArticleHistoryRecorderTest {
     fun firstEditCreatesBaseline() {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
 
-        val newRevision = recorder.record(article, before = "원본", after = "수정본", editor = "2412 홍길동")
+        val newRevision =
+            recorder.record(
+                article,
+                before = "원본",
+                after = "수정본",
+                editor = EditorIdentity(1L, "2412 홍길동"),
+            )
 
         assertThat(newRevision).isEqualTo(2)
 
@@ -68,7 +84,7 @@ class ArticleHistoryRecorderTest {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
             .thenReturn(ArticleHistoryJpaEntity(article, 4, "e", "diff"))
 
-        val newRevision = recorder.record(article, before = "같음", after = "같음", editor = "e")
+        val newRevision = recorder.record(article, before = "같음", after = "같음", editor = EditorIdentity(1L, "e"))
 
         assertThat(newRevision).isNull()
         verify(historyRepository, never()).save(any())
@@ -84,7 +100,7 @@ class ArticleHistoryRecorderTest {
     fun noContentChangeOnNeverEditedArticlePublishesBaselineRevision() {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
 
-        val newRevision = recorder.record(article, before = "같음", after = "같음", editor = "e")
+        val newRevision = recorder.record(article, before = "같음", after = "같음", editor = EditorIdentity(1L, "e"))
 
         assertThat(newRevision).isNull()
         val eventCaptor = argumentCaptor<ArticleUpdatedEvent>()
@@ -99,7 +115,7 @@ class ArticleHistoryRecorderTest {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
             .thenReturn(ArticleHistoryJpaEntity(article, 3, "e", "diff"))
 
-        val newRevision = recorder.record(article, before = "X", after = "Y", editor = "e")
+        val newRevision = recorder.record(article, before = "X", after = "Y", editor = EditorIdentity(1L, "e"))
 
         assertThat(newRevision).isEqualTo(4)
         val snapshotCaptor = argumentCaptor<ArticleSnapshotJpaEntity>()
@@ -114,7 +130,7 @@ class ArticleHistoryRecorderTest {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
             .thenReturn(ArticleHistoryJpaEntity(article, 4, "e", "diff"))
 
-        val newRevision = recorder.record(article, before = "X", after = "Y", editor = "e")
+        val newRevision = recorder.record(article, before = "X", after = "Y", editor = EditorIdentity(1L, "e"))
 
         assertThat(newRevision).isEqualTo(5)
         verify(snapshotRepository, never()).save(any())
@@ -126,11 +142,31 @@ class ArticleHistoryRecorderTest {
         whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L))
             .thenReturn(ArticleHistoryJpaEntity(article, 4, "e", "diff"))
 
-        recorder.record(article, before = "X", after = "Y", editor = "e")
+        recorder.record(article, before = "X", after = "Y", editor = EditorIdentity(1L, "e"))
 
         val eventCaptor = argumentCaptor<ArticleUpdatedEvent>()
         verify(eventPublisher).publishEvent(eventCaptor.capture())
         assertThat(eventCaptor.firstValue.articleId).isEqualTo(1L)
         assertThat(eventCaptor.firstValue.revision).isEqualTo(5)
+    }
+
+    @Test
+    @DisplayName("새 리비전이 생기면 편집자의 수정 기여를 기록한다")
+    fun recordsContributionOnNewRevision() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        recorder.record(article, before = "원본", after = "수정본", editor = EditorIdentity(7L, "2412 홍길동"))
+
+        verify(contributionRecorder).recordEdit(7L, 1L, 2)
+    }
+
+    @Test
+    @DisplayName("내용이 같아 리비전이 생기지 않으면 기여를 기록하지 않는다")
+    fun skipsContributionWithoutNewRevision() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(1L)).thenReturn(null)
+
+        recorder.record(article, before = "같음", after = "같음", editor = EditorIdentity(7L, "2412 홍길동"))
+
+        verify(contributionRecorder, never()).recordEdit(any(), any(), any())
     }
 }
