@@ -18,9 +18,21 @@ class WikiLinkExtractorTest {
     }
 
     @Test
-    @DisplayName("표시 문구(|)와 문단(#)은 떼고 문서명만 본다")
-    fun stripsAliasAndAnchor() {
-        assertThat(WikiLinkExtractor.extract("[[기숙사|우리 집]] [[동아리#소개]]")).containsExactly("기숙사", "동아리")
+    @DisplayName("별칭(|)이 들어간 구문은 링크로 보지 않고, #은 제목의 일부로 본다 — 검색 표시용 변환과 같은 규칙")
+    fun aliasIsNotALinkAndHashIsPartOfTitle() {
+        assertThat(WikiLinkExtractor.extract("[[기숙사|우리 집]] [[동아리#소개]]")).containsExactly("동아리#소개")
+    }
+
+    @Test
+    @DisplayName("중첩된 구문은 링크로 보지 않고, 그 뒤의 링크는 계속 찾는다")
+    fun nestedIsNotALink() {
+        assertThat(WikiLinkExtractor.extract("[[바깥 [[안쪽]] 문서]] 그리고 [[다음]]")).containsExactly("다음")
+    }
+
+    @Test
+    @DisplayName("닫히지 않은 구문 뒤의 같은 줄은 링크로 보지 않지만, 다음 줄은 다시 찾는다")
+    fun unclosedStopsOnlyThatLine() {
+        assertThat(WikiLinkExtractor.extract("[[열림만 [[다른]]\n[[다음 줄]]")).containsExactly("다음 줄")
     }
 
     @Test
