@@ -14,10 +14,11 @@ class LookupArticleTitlesServiceImpl(
 ) : LookupArticleTitlesService {
     @Transactional(readOnly = true)
     override fun execute(reqDto: LookupArticleTitlesReqDto): LookupArticleTitlesResDto {
+        // 정규화 이전에 저장된 제목도 찾을 수 있도록 원문도 함께 조회한다. 응답은 정규화 키로 맞추므로 원문으로 찾은
+        // 문서도 같은 제목의 요청에 연결된다.
         val normalizedTitles =
-            reqDto.titles
-                .map(TitleNormalizer::normalize)
-                .filter { it.isNotEmpty() }
+            (reqDto.titles.map(TitleNormalizer::normalize) + reqDto.titles)
+                .filter { it.isNotBlank() }
                 .distinct()
         val idByKey =
             if (normalizedTitles.isEmpty()) {

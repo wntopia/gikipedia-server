@@ -7,6 +7,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -53,5 +54,18 @@ class LookupArticleTitlesServiceImplTest {
 
         assertThat(result.items.single().exists).isFalse()
         verify(articleRepository, never()).findIdAndTitleByTitleIn(any())
+    }
+
+    @Test
+    @DisplayName("정규화 이전에 저장된 원문 제목도 조회 대상에 포함하고 같은 제목의 요청에 연결한다")
+    fun includesRawTitlesForLegacyArticles() {
+        val captor = argumentCaptor<Collection<String>>()
+        whenever(articleRepository.findIdAndTitleByTitleIn(captor.capture()))
+            .thenReturn(listOf(projection(4L, " 동아리  소개")))
+
+        val result = service.execute(LookupArticleTitlesReqDto(listOf(" 동아리  소개")))
+
+        assertThat(captor.firstValue).contains("동아리 소개", " 동아리  소개")
+        assertThat(result.items.single().id).isEqualTo(4L)
     }
 }

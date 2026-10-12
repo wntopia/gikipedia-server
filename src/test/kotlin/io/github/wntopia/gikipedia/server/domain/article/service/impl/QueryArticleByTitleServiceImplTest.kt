@@ -44,4 +44,16 @@ class QueryArticleByTitleServiceImplTest {
                 assertThat(it.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
             }
     }
+
+    @Test
+    @DisplayName("정규화한 제목으로 못 찾으면 정규화 이전에 저장된 원문 제목으로 한 번 더 찾는다")
+    fun fallsBackToRawTitleForLegacyArticles() {
+        val legacy = ArticleJpaEntity("기숙사  안내", "본문").also { ReflectionTestUtils.setField(it, "id", 9L) }
+        val response = ArticleResDto(9L, "기숙사  안내", "본문", null, null, null)
+        whenever(articleRepository.findByTitle("기숙사 안내")).thenReturn(null)
+        whenever(articleRepository.findByTitle("기숙사  안내")).thenReturn(legacy)
+        whenever(queryArticleService.execute(9L)).thenReturn(response)
+
+        assertThat(service.execute("기숙사  안내")).isEqualTo(response)
+    }
 }
