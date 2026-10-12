@@ -15,7 +15,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
 import team.themoment.sdk.exception.ExpectedException
@@ -172,62 +175,96 @@ class ReconstructArticleServiceImplTest {
         assertThat(service.reconstruct(articleId, 5).latest).isTrue()
     }
 
+    /** 리비전 2, 3이 압축돼 raw 행에서 빠지고 rev1 스냅샷의 페이로드로 옮겨진 상태를 만든다. */
+    private fun compactRevisions2And3(entries: List<ArticleHistorySegmentEntry>) {
+        val remaining = revisionContents.indices.map { it + 1 }.filter { it !in setOf(2, 3) }
+        whenever(historyRepository.findByArticleIdAndRevisionBetweenOrderByRevisionAsc(any(), any(), any()))
+            .thenAnswer { inv ->
+                val from = inv.arguments[1] as Int
+                val to = inv.arguments[2] as Int
+                remaining.filter { it in from..to }.map { history(it, "diff") }
+            }
+        val payload = byteArrayOf(1, 2, 3)
+        snapshot1.attachCompressedInteriorPayload(payload)
+        whenever(snapshotRepository.findCompactedRevisionsBelow(eq(articleId), any())).thenAnswer { inv ->
+            if ((inv.arguments[1] as Int) > 1) listOf(1) else emptyList()
+        }
+        whenever(snapshotRepository.findByArticleIdAndRevision(articleId, 1)).thenReturn(snapshot1)
+        whenever(segmentCodec.decode(payload)).thenReturn(entries)
+    }
+
     @Test
     @DisplayName("listRevisions는 raw row와 압축된 스냅샷 페이로드를 병합해 압축 전과 동일한 목록을 반환한다")
     fun listRevisionsMergesCompactedPayload() {
         val beforeCompaction = service.listRevisions(articleId, 0, 100).items
-
-        // 리비전 2,3을 압축 페이로드로 대체(압축 후 상태) — raw 목록에서도 함께 제거된 것처럼 시뮬레이션.
-        whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId))
-            .thenReturn(beforeCompaction.filter { it.revision !in setOf(2, 3) }.map { history(it.revision, "diff") })
-        val entries =
+        compactRevisions2And3(
             listOf(
                 ArticleHistorySegmentEntry(2, "2412 홍길동", "diff-2", Instant.EPOCH),
                 ArticleHistorySegmentEntry(3, "2412 홍길동", "diff-3", Instant.EPOCH),
-            )
-        val payload = byteArrayOf(1, 2, 3)
-        snapshot1.attachCompressedInteriorPayload(payload)
-        whenever(snapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId))
-            .thenReturn(listOf(snapshot1))
-        whenever(segmentCodec.decode(payload)).thenReturn(entries)
+            ),
+        )
 
         val afterCompaction = service.listRevisions(articleId, 0, 100).items
 
+        assertThat(afterCompaction.map { it.revision }).containsExactly(5, 4, 3, 2, 1)
         assertThat(afterCompaction.map { it.revision }).isEqualTo(beforeCompaction.map { it.revision })
     }
 
     @Test
-    @DisplayName("listRevisions는 요청한 페이지만 잘라 전체 개수와 다음 페이지 여부를 함께 반환한다")
-    fun listRevisionsPaginates() {
-        val all = service.listRevisions(articleId, 0, 100).items
-
+    @DisplayName("listRevisions는 최신 리비전 번호로 전체 개수를 정하고 요청한 리비전 구간만 조회한다")
+    fun listRevisionsPaginatesByRevisionRange() {
         val firstPage = service.listRevisions(articleId, 0, 2)
+        val secondPage = service.listRevisions(articleId, 1, 2)
         val lastPage = service.listRevisions(articleId, 2, 2)
+        val beyond = service.listRevisions(articleId, 3, 2)
 
-        assertThat(firstPage.items.map { it.revision }).isEqualTo(all.take(2).map { it.revision })
-        assertThat(firstPage.totalElements).isEqualTo(all.size.toLong())
+        assertThat(firstPage.items.map { it.revision }).containsExactly(5, 4)
+        assertThat(firstPage.totalElements).isEqualTo(5)
         assertThat(firstPage.hasNext).isTrue()
-        assertThat(lastPage.items.map { it.revision }).isEqualTo(all.drop(4).map { it.revision })
+        assertThat(secondPage.items.map { it.revision }).containsExactly(3, 2)
+        assertThat(lastPage.items.map { it.revision }).containsExactly(1)
         assertThat(lastPage.hasNext).isFalse()
+        assertThat(beyond.items).isEmpty()
+        verify(historyRepository).findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, 4, 5)
+        verify(historyRepository, never()).findByArticleIdOrderByRevisionDesc(any())
+    }
+
+    @Test
+    @DisplayName("요청 구간이 모두 raw 행이면 압축 페이로드를 풀지 않는다")
+    fun listRevisionsSkipsDecodingWhenRangeIsRaw() {
+        compactRevisions2And3(emptyList())
+
+        service.listRevisions(articleId, 0, 2) // 리비전 5, 4 — 압축 구간 밖
+
+        verify(segmentCodec, never()).decode(any())
     }
 
     @Test
     @DisplayName("압축된 세그먼트의 편집 요약·가벼운 수정·글자 수 변화도 목록에 그대로 나온다")
     fun listRevisionsKeepsMetadataOfCompactedEntries() {
-        whenever(historyRepository.findByArticleIdOrderByRevisionDesc(articleId)).thenReturn(emptyList())
-        val payload = byteArrayOf(9)
-        snapshot1.attachCompressedInteriorPayload(payload)
-        whenever(snapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId))
-            .thenReturn(listOf(snapshot1))
-        whenever(segmentCodec.decode(payload)).thenReturn(
-            listOf(ArticleHistorySegmentEntry(2, "2412 홍길동", "d", Instant.EPOCH, "오탈자 수정", true, -3)),
+        compactRevisions2And3(
+            listOf(
+                ArticleHistorySegmentEntry(2, "2412 홍길동", "d", Instant.EPOCH, "오탈자 수정", true, -3),
+                ArticleHistorySegmentEntry(3, "2412 홍길동", "d", Instant.EPOCH),
+            ),
         )
 
-        val item = service.listRevisions(articleId, 0, 10).items.single()
+        val item = service.listRevisions(articleId, 1, 2).items.single { it.revision == 2 }
 
         assertThat(item.summary).isEqualTo("오탈자 수정")
         assertThat(item.minorEdit).isTrue()
         assertThat(item.charDelta).isEqualTo(-3)
+    }
+
+    @Test
+    @DisplayName("한 번도 수정되지 않은 문서는 빈 목록이다")
+    fun listRevisionsEmptyForUntouchedArticle() {
+        whenever(historyRepository.findTopByArticleIdOrderByRevisionDesc(articleId)).thenReturn(null)
+
+        val result = service.listRevisions(articleId, 0, 20)
+
+        assertThat(result.items).isEmpty()
+        assertThat(result.totalElements).isEqualTo(0)
     }
 
     private fun history(
