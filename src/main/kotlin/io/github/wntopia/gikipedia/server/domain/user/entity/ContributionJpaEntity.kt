@@ -17,7 +17,11 @@ import jakarta.persistence.Table
 @Entity
 @Table(
     name = "user_contributions",
-    indexes = [Index(name = "idx_contributions_user_created", columnList = "user_id, created_at")],
+    indexes = [
+        Index(name = "idx_contributions_user_created", columnList = "user_id, created_at"),
+        // 최근 변경 목록이 문서별 최신 기여(MAX(id) GROUP BY article_id)와 편집 통계를 article_id로 찾는다.
+        Index(name = "idx_contributions_article_id", columnList = "article_id, id"),
+    ],
 )
 class ContributionJpaEntity(
     /**
