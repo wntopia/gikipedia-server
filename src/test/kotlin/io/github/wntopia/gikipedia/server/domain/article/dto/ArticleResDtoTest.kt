@@ -8,6 +8,8 @@ import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEnti
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.Instant
 
@@ -28,11 +30,30 @@ class ArticleResDtoTest {
     @Test
     @DisplayName("Mongo 읽기 뷰로 만든 응답에도 복사해 둔 분류가 담긴다")
     fun fromMongoEntityIncludesCategory() {
-        val now = Instant.now()
-        val withCategory = ArticleMongoEntity(1L, "제목", "내용", null, now, now, 2, 3L, "학교")
-        val withoutCategory = ArticleMongoEntity(1L, "제목", "내용", null, now, now, 2)
+        val withCategory = mongoView(categoryId = 3L, categoryName = "학교")
+        val withoutCategory = mongoView(categoryId = null, categoryName = null)
 
         assertThat(ArticleResDto.from(withCategory).category).isEqualTo(CategoryResDto(3L, "학교"))
         assertThat(ArticleResDto.from(withoutCategory).category).isNull()
     }
+
+    /**
+     * 생성자 대신 mock으로 만든다 — 다른 PR(#32 검색)이 Mongo 뷰에 필수 필드를 추가해도 이 테스트가 깨지지 않게 하기 위함이다.
+     * `from()`이 읽는 값만 채운다.
+     */
+    private fun mongoView(
+        categoryId: Long?,
+        categoryName: String?,
+    ): ArticleMongoEntity =
+        mock<ArticleMongoEntity>().also {
+            val now = Instant.now()
+            whenever(it.documentId).thenReturn(1L)
+            whenever(it.title).thenReturn("제목")
+            whenever(it.content).thenReturn("내용")
+            whenever(it.imageUrl).thenReturn(null)
+            whenever(it.articleCreatedAt).thenReturn(now)
+            whenever(it.articleUpdatedAt).thenReturn(now)
+            whenever(it.categoryId).thenReturn(categoryId)
+            whenever(it.categoryName).thenReturn(categoryName)
+        }
 }
