@@ -6,10 +6,12 @@ import io.github.wntopia.gikipedia.server.domain.report.entity.ArticleReportJpaE
 import io.github.wntopia.gikipedia.server.domain.report.entity.ReportStatus
 import io.github.wntopia.gikipedia.server.global.config.JpaAuditingConfig
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageRequest
 
 @DataJpaTest
@@ -55,5 +57,25 @@ class ArticleReportRepositoryIntegrationTest {
         reportRepository.flush()
         assertThat(reportRepository.existsByReporterUserIdAndArticleIdAndStatus(10L, a, ReportStatus.OPEN)).isFalse()
         assertThat(reportRepository.existsByReporterUserIdAndArticleIdAndStatus(99L, a, ReportStatus.OPEN)).isFalse()
+    }
+
+    @Test
+    fun `같은 사용자가 같은 문서에 처리되지 않은 신고를 두 건 만들 수 없다`() {
+        val a = article("A 문서")
+        reportRepository.saveAndFlush(ArticleReportJpaEntity(10L, a, null, "첫 신고"))
+
+        assertThatThrownBy { reportRepository.saveAndFlush(ArticleReportJpaEntity(10L, a, 2, "중복 신고")) }
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `처리된 신고는 중복 키가 비워져 같은 사용자가 다시 신고할 수 있다`() {
+        val a = article("A 문서")
+        val first = reportRepository.saveAndFlush(ArticleReportJpaEntity(10L, a, null, "첫 신고"))
+        first.resolve()
+        reportRepository.saveAndFlush(first)
+
+        reportRepository.saveAndFlush(ArticleReportJpaEntity(10L, a, null, "다시 신고"))
+        reportRepository.saveAndFlush(ArticleReportJpaEntity(11L, a, null, "다른 사용자"))
     }
 }

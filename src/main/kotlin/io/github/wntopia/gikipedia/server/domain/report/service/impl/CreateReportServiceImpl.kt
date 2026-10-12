@@ -9,6 +9,7 @@ import io.github.wntopia.gikipedia.server.domain.report.repository.ArticleReport
 import io.github.wntopia.gikipedia.server.domain.report.service.CreateReportService
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import jakarta.servlet.http.HttpSession
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -47,13 +48,20 @@ class CreateReportServiceImpl(
                 ReportStatus.OPEN,
             )
         ) {
-            throw ExpectedException("이미 신고한 문서입니다. 처리된 뒤에 다시 신고할 수 있습니다.", HttpStatus.CONFLICT)
+            throw duplicateReport()
         }
 
-        articleReportRepository.save(
-            ArticleReportJpaEntity(reporterUserId, articleId, reqDto.revision, reqDto.reason.trim()),
-        )
+        // 위 확인과 저장 사이에 같은 신고가 동시에 들어오는 경합은 open_key 유니크 제약이 막는다.
+        try {
+            articleReportRepository.saveAndFlush(
+                ArticleReportJpaEntity(reporterUserId, articleId, reqDto.revision, reqDto.reason.trim()),
+            )
+        } catch (e: DataIntegrityViolationException) {
+            throw duplicateReport()
+        }
     }
+
+    private fun duplicateReport() = ExpectedException("이미 신고한 문서입니다. 처리된 뒤에 다시 신고할 수 있습니다.", HttpStatus.CONFLICT)
 
     /** 한 사용자가 여러 문서에 신고를 쏟아 관리자 목록을 채우는 것을 막는다. */
     private fun enforceRateLimit(reporterUserId: Long) {

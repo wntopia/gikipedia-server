@@ -25,6 +25,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
@@ -60,7 +61,7 @@ class ReportServicesTest {
         create.execute(1L, CreateReportReqDto("  허위 정보  "), session)
 
         val captor = argumentCaptor<ArticleReportJpaEntity>()
-        verify(reportRepository).save(captor.capture())
+        verify(reportRepository).saveAndFlush(captor.capture())
         assertThat(captor.firstValue.reporterUserId).isEqualTo(10L)
         assertThat(captor.firstValue.reason).isEqualTo("허위 정보")
         assertThat(captor.firstValue.revision).isNull()
@@ -78,7 +79,7 @@ class ReportServicesTest {
         whenever(articleRepository.existsById(9L)).thenReturn(false)
         assertThatThrownBy { create.execute(9L, CreateReportReqDto("사유"), session) }
             .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.NOT_FOUND) })
-        verify(reportRepository, never()).save(any<ArticleReportJpaEntity>())
+        verify(reportRepository, never()).saveAndFlush(any<ArticleReportJpaEntity>())
     }
 
     @Test
@@ -92,7 +93,7 @@ class ReportServicesTest {
 
         assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유"), session) }
             .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.CONFLICT) })
-        verify(reportRepository, never()).save(any<ArticleReportJpaEntity>())
+        verify(reportRepository, never()).saveAndFlush(any<ArticleReportJpaEntity>())
     }
 
     @Test
@@ -106,7 +107,7 @@ class ReportServicesTest {
 
         create.execute(1L, CreateReportReqDto("사유", 4), session)
         val captor = argumentCaptor<ArticleReportJpaEntity>()
-        verify(reportRepository).save(captor.capture())
+        verify(reportRepository).saveAndFlush(captor.capture())
         assertThat(captor.firstValue.revision).isEqualTo(4)
 
         assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유", 5), session) }
@@ -135,7 +136,20 @@ class ReportServicesTest {
 
         assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유"), session) }
             .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.TOO_MANY_REQUESTS) })
-        verify(reportRepository, never()).save(any<ArticleReportJpaEntity>())
+        verify(reportRepository, never()).saveAndFlush(any<ArticleReportJpaEntity>())
+    }
+
+    @Test
+    @DisplayName("동시 신고로 유니크 제약에 걸리면 409로 바꾼다")
+    fun convertsConcurrentDuplicateToConflict() {
+        loggedIn()
+        whenever(articleRepository.existsById(1L)).thenReturn(true)
+        whenever(
+            reportRepository.saveAndFlush(any<ArticleReportJpaEntity>()),
+        ).thenThrow(DataIntegrityViolationException("dup"))
+
+        assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유"), session) }
+            .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.CONFLICT) })
     }
 
     @Test
