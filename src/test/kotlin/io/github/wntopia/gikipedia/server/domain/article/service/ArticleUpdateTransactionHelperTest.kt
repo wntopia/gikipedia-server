@@ -3,6 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.article.service
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -26,8 +27,10 @@ class ArticleUpdateTransactionHelperTest {
     private val articleRepository = mock<ArticleRepository>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
 
-    private val helper = ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+    private val helper =
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore, articleLinkIndexer)
 
     private val article = ArticleJpaEntity(title = "제목", content = "이전 내용", imageUrl = "old.png")
 
@@ -81,5 +84,24 @@ class ArticleUpdateTransactionHelperTest {
 
         verify(articleRepository).findByIdForUpdate(1L)
         verify(articleRepository, org.mockito.kotlin.never()).findById(any())
+    }
+
+    @Test
+    @DisplayName("본문이 바뀌면 바뀐 본문으로 링크 관계를 다시 맞춘다")
+    fun reindexesLinksWhenContentChanges() {
+        helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) {
+            it.update("[[링크]] 새 내용", it.imageUrl)
+            "이전 내용" to "[[링크]] 새 내용"
+        }
+
+        verify(articleLinkIndexer).reindex(1L, "제목", "[[링크]] 새 내용")
+    }
+
+    @Test
+    @DisplayName("본문이 그대로면(이미지만 교체 등) 링크를 다시 색인하지 않는다")
+    fun skipsReindexWhenContentUnchanged() {
+        helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) { it.content to it.content }
+
+        verify(articleLinkIndexer, org.mockito.kotlin.never()).reindex(any(), any(), any())
     }
 }

@@ -8,6 +8,7 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_K
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
@@ -28,6 +29,7 @@ class CreateArticleServiceImpl(
     private val articleCacheStore: ArticleCacheStore,
     private val authenticationReader: AuthenticationReader,
     private val contributionRecorder: ContributionRecorder,
+    private val articleLinkIndexer: ArticleLinkIndexer,
 ) : CreateArticleService {
     @Transactional
     override fun execute(
@@ -57,6 +59,7 @@ class CreateArticleServiceImpl(
             }
 
         contributionRecorder.recordCreate(createdByUserId, requireNotNull(saved.id))
+        articleLinkIndexer.reindex(requireNotNull(saved.id), saved.title, saved.content)
 
         // article_histories의 리비전 체계("리비전 1 = 생성 시점 그대로")와 맞춰, Mongo 뷰도 생성 시점에
         // 리비전 1로 채워둔다. 이걸 빼먹으면 한 번도 수정 안 된 문서는 Mongo에 영영 없는 상태로 남는다.

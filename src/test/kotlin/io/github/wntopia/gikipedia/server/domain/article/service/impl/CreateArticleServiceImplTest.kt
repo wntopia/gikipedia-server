@@ -6,6 +6,7 @@ import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepos
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmUserInfoResDto
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
@@ -36,6 +37,7 @@ class CreateArticleServiceImplTest {
     private val articleCacheStore = mock<ArticleCacheStore>()
     private val authenticationReader = mock<AuthenticationReader>()
     private val contributionRecorder = mock<ContributionRecorder>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
     private val session = mock<HttpSession>()
 
     private val service =
@@ -46,6 +48,7 @@ class CreateArticleServiceImplTest {
             articleCacheStore,
             authenticationReader,
             contributionRecorder,
+            articleLinkIndexer,
         )
 
     @BeforeEach
@@ -142,5 +145,13 @@ class CreateArticleServiceImplTest {
         verify(articleRepository).saveAndFlush(captor.capture())
         assertThat(captor.firstValue.createdByUserId).isNull()
         verify(contributionRecorder).recordCreate(null, 1L)
+    }
+
+    @Test
+    @DisplayName("생성한 본문의 위키 링크를 색인한다")
+    fun indexesLinksOfNewArticle() {
+        service.execute(CreateArticleReqDto(title = "제목", content = "[[다른 문서]] 참고"), session)
+
+        verify(articleLinkIndexer).reindex(1L, "제목", "[[다른 문서]] 참고")
     }
 }

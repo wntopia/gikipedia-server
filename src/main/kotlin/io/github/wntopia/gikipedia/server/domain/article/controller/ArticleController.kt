@@ -12,6 +12,9 @@ import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleByT
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
+import io.github.wntopia.gikipedia.server.domain.link.dto.response.BacklinkResDto
+import io.github.wntopia.gikipedia.server.domain.link.service.QueryBacklinksService
+import io.github.wntopia.gikipedia.server.global.dto.PageResDto
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -19,7 +22,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.HttpSession
 import jakarta.validation.Valid
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import org.springframework.http.MediaType
+import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.ModelAttribute
 import org.springframework.web.bind.annotation.PatchMapping
@@ -36,6 +42,7 @@ import team.themoment.sdk.response.CommonApiResponse
     name = "Article",
     description = "문서 생성·조회·수정 API. 모든 응답은 `{ status, code, message, data }` 형태로 감싸지며 실제 값은 `data`에 담긴다.",
 )
+@Validated
 @RestController
 @RequestMapping("/api/v1/articles")
 class ArticleController(
@@ -45,6 +52,7 @@ class ArticleController(
     private val updateArticleImageService: UpdateArticleImageService,
     private val queryArticleByTitleService: QueryArticleByTitleService,
     private val lookupArticleTitlesService: LookupArticleTitlesService,
+    private val queryBacklinksService: QueryBacklinksService,
 ) {
     @Operation(
         summary = "문서 생성",
@@ -84,6 +92,31 @@ class ArticleController(
     fun queryByTitle(
         @Parameter(description = "문서 제목", example = "기숙사 생활 안내") @RequestParam title: String,
     ): ArticleResDto = queryArticleByTitleService.execute(title)
+
+    @Operation(
+        summary = "역링크 조회",
+        description =
+            "지정한 제목을 `[[문서명]]`으로 링크하고 있는 문서 목록을 제목 순으로 조회한다. 아직 만들어지지 않은 " +
+                "문서의 제목으로도 조회할 수 있다. `[[문서명|표시 문구]]`와 `[[문서명#문단]]`은 `|`, `#` 앞의 문서명으로 " +
+                "본다. 자기 자신을 링크한 경우는 제외한다. 로그인 없이 호출할 수 있다.",
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "조회 성공. 링크한 문서가 없으면 빈 목록이다."),
+            ApiResponse(responseCode = "400", description = "page 또는 size가 범위를 벗어남"),
+        ],
+    )
+    @GetMapping("/backlinks")
+    fun backlinks(
+        @Parameter(description = "링크 대상 문서 제목", example = "기숙사 생활 안내") @RequestParam title: String,
+        @Parameter(description = "페이지 번호 (0부터, 기본 0)", example = "0")
+        @RequestParam(defaultValue = "0")
+        @Min(0) page: Int,
+        @Parameter(description = "페이지 크기 (1~100, 기본 20)", example = "20")
+        @RequestParam(defaultValue = "20")
+        @Min(1)
+        @Max(100) size: Int,
+    ): PageResDto<BacklinkResDto> = queryBacklinksService.execute(title, page, size)
 
     @Operation(
         summary = "제목 존재 여부 일괄 조회",

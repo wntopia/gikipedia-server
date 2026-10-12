@@ -7,6 +7,7 @@ import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepos
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
@@ -37,12 +38,13 @@ class UpdateArticleImageServiceImplTest {
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val authenticationReader = mock<AuthenticationReader>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
     private val transactionTemplate = mock<TransactionTemplate>()
     private val session = mock<HttpSession>()
     private val image = mock<MultipartFile>()
 
     private val articleUpdateTransactionHelper =
-        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore, articleLinkIndexer)
 
     private val service =
         UpdateArticleImageServiceImpl(

@@ -5,6 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepos
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -27,9 +28,10 @@ class SaveCollaborativeRevisionServiceTest {
     private val articleRepository = mock<ArticleRepository>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
 
     private val articleUpdateTransactionHelper =
-        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore, articleLinkIndexer)
     private val service = SaveCollaborativeRevisionService(articleUpdateTransactionHelper)
 
     private val article = ArticleJpaEntity(title = "제목", content = "이전 내용", imageUrl = "old.png")
