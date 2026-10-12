@@ -21,6 +21,8 @@ data class ArticleResDto(
     val updatedAt: Instant?,
     @field:Schema(description = "문서 분류 (분류가 없으면 null)")
     val category: CategoryResDto? = null,
+    @field:Schema(description = "누적 조회수. 문서 조회(GET) 응답에서만 실시간 값이고, 그 밖의 응답에서는 저장된 값이거나 0이다.", example = "128")
+    val viewCount: Long = 0,
 ) {
     companion object {
         fun from(entity: ArticleJpaEntity): ArticleResDto =
@@ -32,6 +34,7 @@ data class ArticleResDto(
                 createdAt = entity.createdAt,
                 updatedAt = entity.updatedAt,
                 category = entity.category?.let { CategoryResDto(requireNotNull(it.id), it.name) },
+                viewCount = entity.viewCount,
             )
 
         fun from(entity: ArticleMongoEntity): ArticleResDto =

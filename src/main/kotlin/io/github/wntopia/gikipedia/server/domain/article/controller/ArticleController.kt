@@ -6,12 +6,15 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArtic
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.LookupArticleTitlesResDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.response.PopularArticleResDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.RecentChangeResDto
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.LookupArticleTitlesService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleByTitleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
+import io.github.wntopia.gikipedia.server.domain.article.service.QueryPopularArticlesService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryRecentChangesService
+import io.github.wntopia.gikipedia.server.domain.article.service.TrackArticleViewService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
 import io.github.wntopia.gikipedia.server.domain.link.dto.response.BacklinkResDto
@@ -22,6 +25,7 @@ import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpSession
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
@@ -54,6 +58,8 @@ class ArticleController(
     private val lookupArticleTitlesService: LookupArticleTitlesService,
     private val queryBacklinksService: QueryBacklinksService,
     private val queryRecentChangesService: QueryRecentChangesService,
+    private val queryPopularArticlesService: QueryPopularArticlesService,
+    private val trackArticleViewService: TrackArticleViewService,
 ) {
     @Operation(
         summary = "문서 생성",
@@ -81,7 +87,8 @@ class ArticleController(
         summary = "제목으로 문서 조회",
         description =
             "위키 링크(`[[문서명]]`)의 제목으로 문서를 조회한다. 제목은 생성 시와 같은 규칙(앞뒤 공백 제거, " +
-                "유니코드 정규화, 연속 공백 축소, 대소문자 무시)으로 정규화해 찾는다. 로그인 없이 호출할 수 있다.",
+                "유니코드 정규화, 연속 공백 축소, 대소문자 무시)으로 정규화해 찾는다. 로그인 없이 호출할 수 있고, " +
+                "문서 조회와 같이 조회수가 집계된다.",
     )
     @ApiResponses(
         value = [
@@ -92,7 +99,28 @@ class ArticleController(
     @GetMapping("/by-title")
     fun queryByTitle(
         @Parameter(description = "문서 제목", example = "기숙사 생활 안내") @RequestParam title: String,
-    ): ArticleResDto = queryArticleByTitleService.execute(title)
+        @Parameter(hidden = true) request: HttpServletRequest,
+    ): ArticleResDto = withViewCount(queryArticleByTitleService.execute(title), request)
+
+    @Operation(
+        summary = "인기 문서 목록 조회",
+        description =
+            "누적 조회수가 많은 문서를 조회수 순(전체 기간)으로 반환한다. 조회수는 약 30초 주기로 반영되므로 목록이 " +
+                "그만큼 늦게 갱신될 수 있다. 로그인 없이 호출할 수 있다.",
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "조회 성공"),
+            ApiResponse(responseCode = "400", description = "size가 범위(1~50)를 벗어남"),
+        ],
+    )
+    @GetMapping("/popular")
+    fun popular(
+        @Parameter(description = "가져올 개수 (1~50, 기본 10)", example = "10")
+        @RequestParam(defaultValue = "10")
+        @Min(1)
+        @Max(50) size: Int,
+    ): List<PopularArticleResDto> = queryPopularArticlesService.execute(size)
 
     @Operation(
         summary = "최근 변경 문서 목록 조회",
@@ -164,7 +192,9 @@ class ArticleController(
 
     @Operation(
         summary = "문서 조회",
-        description = "문서의 최신 내용을 조회한다. 로그인 없이 호출할 수 있다.",
+        description =
+            "문서의 최신 내용을 조회한다. 로그인 없이 호출할 수 있다. 조회하면 조회수가 늘어나며(같은 사용자의 30분 내 재조회는 " +
+                "집계하지 않는다), 응답의 `viewCount`에 반영된 누적 조회수가 담긴다.",
     )
     @ApiResponses(
         value = [
@@ -175,7 +205,8 @@ class ArticleController(
     @GetMapping("/{articleId}")
     fun query(
         @Parameter(description = "문서 ID", example = "1") @PathVariable articleId: Long,
-    ): ArticleResDto = queryArticleService.execute(articleId)
+        @Parameter(hidden = true) request: HttpServletRequest,
+    ): ArticleResDto = withViewCount(queryArticleService.execute(articleId), request)
 
     @Operation(
         summary = "문서 수정",
@@ -225,4 +256,11 @@ class ArticleController(
         @Valid @ModelAttribute reqDto: UpdateArticleImageReqDto,
         @Parameter(hidden = true) session: HttpSession,
     ): ArticleResDto = updateArticleImageService.execute(articleId, reqDto, session)
+
+    /** 조회를 집계하고 응답에 누적 조회수를 싣는다. 집계에 실패하면 응답의 기존 값을 그대로 둔다. */
+    private fun withViewCount(
+        article: ArticleResDto,
+        request: HttpServletRequest,
+    ): ArticleResDto =
+        trackArticleViewService.execute(article.id, request)?.let { article.copy(viewCount = it) } ?: article
 }

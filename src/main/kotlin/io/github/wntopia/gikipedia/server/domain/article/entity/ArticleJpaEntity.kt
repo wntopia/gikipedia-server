@@ -33,6 +33,19 @@ class ArticleJpaEntity(
     var content: String = content
         protected set
 
+    /**
+     * 누적 조회수. 이 필드로는 쓰지 않는다(`updatable = false`) — 문서 수정이 오래된 값으로 덮어써 집계를 지우지 않도록,
+     * 오직 [ArticleRepository.addViewCount]의 벌크 UPDATE로만 늘어난다(그래서 `updatedAt`도 바뀌지 않는다).
+     */
+    @field:Column(
+        name = "view_count",
+        nullable = false,
+        updatable = false,
+        columnDefinition = "bigint not null default 0",
+    )
+    var viewCount: Long = 0
+        protected set
+
     @field:Column(name = "image_url", length = 2048)
     var imageUrl: String? = imageUrl
         protected set

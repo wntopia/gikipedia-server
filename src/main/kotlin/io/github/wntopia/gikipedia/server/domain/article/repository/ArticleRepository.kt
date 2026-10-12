@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
@@ -20,6 +21,25 @@ interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun findByIdWithCategory(
         @Param("id") id: Long,
     ): ArticleJpaEntity?
+
+    /** 조회수 flush용. 엔티티를 거치지 않는 벌크 UPDATE라 `updatedAt`(최근 변경)을 건드리지 않는다. */
+    @Modifying
+    @Query("UPDATE ArticleJpaEntity a SET a.viewCount = a.viewCount + :delta WHERE a.id = :id")
+    fun addViewCount(
+        @Param("id") id: Long,
+        @Param("delta") delta: Long,
+    ): Int
+
+    @Query("SELECT a.viewCount FROM ArticleJpaEntity a WHERE a.id = :id")
+    fun findViewCountById(
+        @Param("id") id: Long,
+    ): Long?
+
+    /** 조회수 순(전체 기간) 상위 문서. */
+    @Query(
+        "SELECT a.id AS id, a.title AS title, a.viewCount AS viewCount FROM ArticleJpaEntity a ORDER BY a.viewCount DESC, a.id ASC",
+    )
+    fun findPopular(pageable: Pageable): List<ArticlePopularView>
 
     /** 분류에 속한 문서를 최근 수정 순으로. 본문은 읽지 않는다. */
     @Query(
@@ -88,4 +108,10 @@ interface ArticleRecentView {
     val title: String
     val createdAt: java.time.Instant
     val updatedAt: java.time.Instant
+}
+
+interface ArticlePopularView {
+    val id: Long
+    val title: String
+    val viewCount: Long
 }
