@@ -9,9 +9,13 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheSto
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
+import io.github.wntopia.gikipedia.server.global.text.TitleNormalizer
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class CreateArticleServiceImpl(
@@ -22,6 +26,9 @@ class CreateArticleServiceImpl(
 ) : CreateArticleService {
     @Transactional
     override fun execute(reqDto: CreateArticleReqDto): ArticleResDto {
+        val title = TitleNormalizer.normalize(reqDto.title)
+        if (title.isEmpty() || articleRepository.existsByTitle(title)) throw duplicateTitle()
+
         val imageUrl =
             reqDto.image?.takeIf { !it.isEmpty }?.let {
                 seaweedUploader.upload(
@@ -29,7 +36,13 @@ class CreateArticleServiceImpl(
                     ARTICLE_IMAGE_KEY_PREFIX,
                 )
             }
-        val saved = articleRepository.save(ArticleJpaEntity(reqDto.title, reqDto.content, imageUrl))
+        // 사전 확인과 저장 사이에 같은 제목이 끼어드는 경합은 유니크 제약이 막는다 — 즉시 flush해 여기서 409로 변환한다.
+        val saved =
+            try {
+                articleRepository.saveAndFlush(ArticleJpaEntity(title, reqDto.content, imageUrl))
+            } catch (e: DataIntegrityViolationException) {
+                throw duplicateTitle()
+            }
 
         // article_histories의 리비전 체계("리비전 1 = 생성 시점 그대로")와 맞춰, Mongo 뷰도 생성 시점에
         // 리비전 1로 채워둔다. 이걸 빼먹으면 한 번도 수정 안 된 문서는 Mongo에 영영 없는 상태로 남는다.
@@ -49,6 +62,8 @@ class CreateArticleServiceImpl(
         articleCacheStore.putAfterCommit(response)
         return response
     }
+
+    private fun duplicateTitle() = ExpectedException("이미 존재하는 제목입니다.", HttpStatus.CONFLICT)
 
     companion object {
         private const val BASELINE_REVISION = 1

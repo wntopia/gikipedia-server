@@ -1,0 +1,47 @@
+package io.github.wntopia.gikipedia.server.domain.article.service.impl
+
+import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
+import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
+import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
+import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import org.springframework.http.HttpStatus
+import org.springframework.test.util.ReflectionTestUtils
+import team.themoment.sdk.exception.ExpectedException
+
+class QueryArticleByTitleServiceImplTest {
+    private val articleRepository = mock<ArticleRepository>()
+    private val queryArticleService = mock<QueryArticleService>()
+    private val service = QueryArticleByTitleServiceImpl(articleRepository, queryArticleService)
+
+    @Test
+    @DisplayName("정규화한 제목으로 문서를 찾아 id 기반 조회에 위임한다")
+    fun delegatesToQueryByIdWithNormalizedTitle() {
+        val entity = ArticleJpaEntity("기숙사 생활 안내", "본문").also { ReflectionTestUtils.setField(it, "id", 7L) }
+        val response = ArticleResDto(7L, "기숙사 생활 안내", "본문", null, null, null)
+        whenever(articleRepository.findByTitle("기숙사 생활 안내")).thenReturn(entity)
+        whenever(queryArticleService.execute(7L)).thenReturn(response)
+
+        val result = service.execute("  기숙사   생활 안내 ")
+
+        assertThat(result).isEqualTo(response)
+        verify(queryArticleService).execute(7L)
+    }
+
+    @Test
+    @DisplayName("없는 제목이면 404를 던진다")
+    fun throwsNotFoundWhenTitleMissing() {
+        whenever(articleRepository.findByTitle("없는 문서")).thenReturn(null)
+
+        assertThatThrownBy { service.execute("없는 문서") }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+            }
+    }
+}

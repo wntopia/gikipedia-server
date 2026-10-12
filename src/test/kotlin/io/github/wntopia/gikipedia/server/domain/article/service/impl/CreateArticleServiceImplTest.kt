@@ -7,16 +7,21 @@ import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheSto
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.test.util.ReflectionTestUtils
+import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
 /** 생성 시에도 Mongo 동기화 이벤트(baseline revision=1)를 발행하고 캐시를 채우는지 검증. */
@@ -31,7 +36,7 @@ class CreateArticleServiceImplTest {
 
     @BeforeEach
     fun setUp() {
-        whenever(articleRepository.save(any<ArticleJpaEntity>())).thenAnswer { invocation ->
+        whenever(articleRepository.saveAndFlush(any<ArticleJpaEntity>())).thenAnswer { invocation ->
             val entity = invocation.getArgument<ArticleJpaEntity>(0)
             ReflectionTestUtils.setField(entity, "id", 1L)
             // 이벤트 발행 시 createdAt/updatedAt을 requireNotNull로 확인하므로, 실제 저장 시
@@ -59,5 +64,41 @@ class CreateArticleServiceImplTest {
         val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용"))
 
         verify(articleCacheStore).putAfterCommit(response)
+    }
+
+    @Test
+    @DisplayName("제목은 정규화한 뒤 저장한다")
+    fun savesNormalizedTitle() {
+        service.execute(CreateArticleReqDto(title = "  기숙사   생활 ", content = "내용"))
+
+        val captor = argumentCaptor<ArticleJpaEntity>()
+        verify(articleRepository).saveAndFlush(captor.capture())
+        assertThat(captor.firstValue.title).isEqualTo("기숙사 생활")
+    }
+
+    @Test
+    @DisplayName("이미 있는 제목이면 이미지를 올리기 전에 409를 던진다")
+    fun rejectsDuplicateTitleBeforeUpload() {
+        whenever(articleRepository.existsByTitle("제목")).thenReturn(true)
+
+        assertThatThrownBy { service.execute(CreateArticleReqDto(title = "제목", content = "내용")) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            }
+        verify(seaweedUploader, never()).upload(any(), any())
+        verify(articleRepository, never()).saveAndFlush(any<ArticleJpaEntity>())
+    }
+
+    @Test
+    @DisplayName("동시 생성으로 유니크 제약에 걸려도 409로 변환한다")
+    fun convertsUniqueViolationToConflict() {
+        whenever(
+            articleRepository.saveAndFlush(any<ArticleJpaEntity>()),
+        ).thenThrow(DataIntegrityViolationException("dup"))
+
+        assertThatThrownBy { service.execute(CreateArticleReqDto(title = "제목", content = "내용")) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            }
     }
 }

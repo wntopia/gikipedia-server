@@ -9,6 +9,16 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
+    fun existsByTitle(title: String): Boolean
+
+    fun findByTitle(title: String): ArticleJpaEntity?
+
+    /** 제목 일괄 존재 여부 확인용. 본문 전체를 읽지 않도록 id와 제목만 가져온다. */
+    @Query("SELECT a.id AS id, a.title AS title FROM ArticleJpaEntity a WHERE a.title IN :titles")
+    fun findIdAndTitleByTitleIn(
+        @Param("titles") titles: Collection<String>,
+    ): List<ArticleTitleProjection>
+
     /**
      * 일일 정합성 검사 배치가 청크 단위로 훑을 article id 목록.
      *
@@ -35,4 +45,9 @@ interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun findByIdForUpdate(
         @Param("id") id: Long,
     ): ArticleJpaEntity?
+}
+
+interface ArticleTitleProjection {
+    val id: Long
+    val title: String
 }

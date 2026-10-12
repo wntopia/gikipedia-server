@@ -1,10 +1,14 @@
 package io.github.wntopia.gikipedia.server.domain.article.controller
 
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArticleReqDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.request.LookupArticleTitlesReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleImageReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.request.UpdateArticleReqDto
 import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleResDto
+import io.github.wntopia.gikipedia.server.domain.article.dto.response.LookupArticleTitlesResDto
 import io.github.wntopia.gikipedia.server.domain.article.service.CreateArticleService
+import io.github.wntopia.gikipedia.server.domain.article.service.LookupArticleTitlesService
+import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleByTitleService
 import io.github.wntopia.gikipedia.server.domain.article.service.QueryArticleService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleImageService
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
@@ -22,7 +26,9 @@ import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
@@ -37,17 +43,21 @@ class ArticleController(
     private val queryArticleService: QueryArticleService,
     private val updateArticleService: UpdateArticleService,
     private val updateArticleImageService: UpdateArticleImageService,
+    private val queryArticleByTitleService: QueryArticleByTitleService,
+    private val lookupArticleTitlesService: LookupArticleTitlesService,
 ) {
     @Operation(
         summary = "문서 생성",
         description =
             "제목·본문·대표 이미지(선택)로 새 문서를 만든다. `multipart/form-data`로 전송하며 이미지는 최대 10MB. " +
-                "생성된 문서는 리비전 1로 히스토리에 기록되고, 제목은 이후 수정할 수 없다.",
+                "생성된 문서는 리비전 1로 히스토리에 기록되고, 제목은 이후 수정할 수 없다. " +
+                "제목은 앞뒤 공백 제거·유니코드(NFC) 정규화·연속 공백 축소 후 저장되며, 대소문자 구분 없이 유일해야 한다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "201", description = "생성 성공. `data`에 생성된 문서가 담긴다."),
             ApiResponse(responseCode = "400", description = "제목/본문이 비어 있거나 제목이 255자를 초과함"),
+            ApiResponse(responseCode = "409", description = "같은 제목의 문서가 이미 존재함"),
             ApiResponse(responseCode = "502", description = "이미지 업로드 실패"),
         ],
     )
@@ -55,6 +65,40 @@ class ArticleController(
     fun create(
         @Valid @ModelAttribute reqDto: CreateArticleReqDto,
     ): CommonApiResponse<ArticleResDto> = CommonApiResponse.created("", createArticleService.execute(reqDto))
+
+    @Operation(
+        summary = "제목으로 문서 조회",
+        description =
+            "위키 링크(`[[문서명]]`)의 제목으로 문서를 조회한다. 제목은 생성 시와 같은 규칙(앞뒤 공백 제거, " +
+                "유니코드 정규화, 연속 공백 축소, 대소문자 무시)으로 정규화해 찾는다. 로그인 없이 호출할 수 있다.",
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "조회 성공"),
+            ApiResponse(responseCode = "404", description = "해당 제목의 문서가 없음"),
+        ],
+    )
+    @GetMapping("/by-title")
+    fun queryByTitle(
+        @Parameter(description = "문서 제목", example = "기숙사 생활 안내") @RequestParam title: String,
+    ): ArticleResDto = queryArticleByTitleService.execute(title)
+
+    @Operation(
+        summary = "제목 존재 여부 일괄 조회",
+        description =
+            "본문에 나온 여러 위키 링크 제목이 실제 문서인지 한 번에 확인한다(최대 200개). 요청한 순서대로 " +
+                "제목별 존재 여부와 문서 ID를 반환하며, 존재하지 않는 제목의 `id`는 null이다. 로그인 없이 호출할 수 있다.",
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(responseCode = "200", description = "조회 성공. 존재하지 않는 제목도 `exists=false`로 포함된다."),
+            ApiResponse(responseCode = "400", description = "제목 목록이 비어 있거나 200개를 초과함"),
+        ],
+    )
+    @PostMapping("/titles/lookup")
+    fun lookupTitles(
+        @Valid @RequestBody reqDto: LookupArticleTitlesReqDto,
+    ): LookupArticleTitlesResDto = lookupArticleTitlesService.execute(reqDto)
 
     @Operation(
         summary = "문서 조회",
