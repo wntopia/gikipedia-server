@@ -12,6 +12,15 @@ import org.springframework.data.repository.query.Param
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun existsByTitle(title: String): Boolean
 
+    /**
+     * 분류를 함께 가져오는 단건 조회. 분류는 지연 로딩이라, 트랜잭션 밖(정합성 배치 등)에서 `findById` 결과의
+     * `category.name`을 읽으면 `LazyInitializationException`이 난다.
+     */
+    @Query("SELECT a FROM ArticleJpaEntity a LEFT JOIN FETCH a.category WHERE a.id = :id")
+    fun findByIdWithCategory(
+        @Param("id") id: Long,
+    ): ArticleJpaEntity?
+
     /** 분류에 속한 문서를 최근 수정 순으로. 본문은 읽지 않는다. */
     @Query(
         value =

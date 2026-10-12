@@ -17,7 +17,6 @@ import jakarta.servlet.http.HttpSession
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -28,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "Category", description = "문서 분류 API. 문서는 생성·수정 시 `categoryId`로 분류를 지정한다.")
-@Validated
 @RestController
 @RequestMapping("/api/v1/categories")
 class CategoryController(

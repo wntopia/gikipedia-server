@@ -4,8 +4,10 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEntity
 import io.github.wntopia.gikipedia.server.global.config.JpaAuditingConfig
+import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.hibernate.Hibernate
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
@@ -21,6 +23,9 @@ class CategoryRepositoryIntegrationTest {
 
     @Autowired
     private lateinit var articleRepository: ArticleRepository
+
+    @Autowired
+    private lateinit var entityManager: EntityManager
 
     private fun article(
         title: String,
@@ -64,5 +69,19 @@ class CategoryRepositoryIntegrationTest {
         assertThat(page.content.map { it.title }).containsExactly("학교 문서 2", "학교 문서 1")
         assertThat(page.content.first().id).isEqualTo(latest.id)
         assertThat(page.totalElements).isEqualTo(2)
+    }
+
+    @Test
+    fun `fetch join 조회는 세션 밖에서도 분류 이름을 읽을 수 있다`() {
+        val school = categoryRepository.saveAndFlush(CategoryJpaEntity("학교"))
+        val saved = article("분류 문서", school)
+        entityManager.clear()
+
+        val loaded = requireNotNull(articleRepository.findByIdWithCategory(requireNotNull(saved.id)))
+        entityManager.clear() // 세션이 닫힌 것과 같은 상태(분리됨)
+
+        assertThat(Hibernate.isInitialized(loaded.category)).isTrue()
+        assertThat(loaded.category?.name).isEqualTo("학교")
+        assertThat(articleRepository.findByIdWithCategory(Long.MAX_VALUE)).isNull()
     }
 }

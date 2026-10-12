@@ -30,9 +30,9 @@ class QueryArticleServiceImpl(
     // 하나만 실행될 때 그 호출에 한해서만 짧게 트랜잭션이 열리고 닫힌다.
     private fun queryFromMysql(articleId: Long): ArticleResDto =
         articleRepository
-            .findById(articleId)
-            .orElseThrow { notFound() }
-            .let(ArticleResDto::from)
+            .findByIdWithCategory(articleId)
+            ?.let(ArticleResDto::from)
+            ?: throw notFound()
 
     /**
      * Redis miss 시 Mongo를 조회해 backfill한다. Mongo까지 miss면(정상적으로는 생성 이벤트가 이미
