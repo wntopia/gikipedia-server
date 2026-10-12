@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import org.hibernate.annotations.Collate
 
 @Entity
 @Table(
@@ -24,7 +25,12 @@ class ArticleJpaEntity(
     /** 문서를 만든 사용자의 DataGSM 계정 id. 비로그인 생성이거나 이전 데이터면 null. */
     @field:Column(name = "created_by_user_id", updatable = false) val createdByUserId: Long? = null,
 ) : BaseJpaEntity() {
+    /**
+     * 악센트는 구분하고 대소문자·전각/반각은 무시하는 collation. 기본값(`utf8mb4_0900_ai_ci`)은 악센트까지
+     * 무시해 [io.github.wntopia.gikipedia.server.global.text.TitleNormalizer.keyOf]와 판정이 갈린다.
+     */
     @field:Column(name = "title", nullable = false, length = 255)
+    @field:Collate("utf8mb4_0900_as_ci")
     var title: String = title
         protected set
 
