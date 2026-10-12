@@ -20,6 +20,9 @@ interface ContributionRepository : JpaRepository<ContributionJpaEntity, Long> {
         since: Instant,
     ): Long
 
+    /** [since] 이후의 전체 기여(문서 생성·수정) 수. */
+    fun countByCreatedAtGreaterThanEqual(since: Instant): Long
+
     /** 최근 기여 목록(최신 순). 문서 제목을 함께 가져온다. */
     @Query(
         "SELECT c.articleId AS articleId, a.title AS title, c.type AS type, c.createdAt AS contributedAt " +
