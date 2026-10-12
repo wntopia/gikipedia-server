@@ -14,8 +14,11 @@ object ArticleSearchTextConverter {
 
     private fun stripHeading(line: String): String {
         val trimmed = line.trim()
-        if (trimmed.length < 5 || !trimmed.startsWith("==") || !trimmed.endsWith("==") ||
-            trimmed.startsWith("===") || trimmed.endsWith("===")
+        if (trimmed.length < 5 ||
+            !trimmed.startsWith("==") ||
+            !trimmed.endsWith("==") ||
+            trimmed.startsWith("===") ||
+            trimmed.endsWith("===")
         ) {
             return line
         }
