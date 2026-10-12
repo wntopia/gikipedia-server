@@ -64,6 +64,9 @@ collaboration:
   leave-debounce-seconds: ${COLLABORATION_LEAVE_DEBOUNCE_SECONDS:20}
 
 article:
+  search:
+    # DB 명령별 제한 시간. 목록과 전체 건수 조회에 각각 적용하며 HTTP 전체 시간 제한은 아니다.
+    max-time: ${ARTICLE_SEARCH_MAX_TIME:2s}
   snapshot:
     interval: ${ARTICLE_SNAPSHOT_INTERVAL:10}
   history:

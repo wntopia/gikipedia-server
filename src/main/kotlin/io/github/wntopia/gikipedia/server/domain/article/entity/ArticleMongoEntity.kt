@@ -22,4 +22,5 @@ class ArticleMongoEntity(
     @field:Field("article_created_at") val articleCreatedAt: Instant,
     @field:Field("article_updated_at") val articleUpdatedAt: Instant,
     @field:Field("revision") val revision: Int,
+    @field:Field("search_text") val searchText: String,
 ) : BaseMongoEntity()

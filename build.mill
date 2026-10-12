@@ -122,6 +122,8 @@ object `package` extends KotlinMavenModule, SpringBootModule, SpotlessModule {
       mvn"org.springframework.boot:spring-boot-starter-thymeleaf-test",
       mvn"org.springframework.boot:spring-boot-starter-webmvc-test",
       mvn"org.springframework.modulith:spring-modulith-starter-test",
+      mvn"org.testcontainers:testcontainers-mongodb",
+      mvn"org.testcontainers:testcontainers-junit-jupiter",
       mvn"org.mockito.kotlin:mockito-kotlin:6.3.0"
     )
 
