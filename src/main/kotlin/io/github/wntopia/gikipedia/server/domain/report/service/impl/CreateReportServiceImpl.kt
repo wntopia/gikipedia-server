@@ -13,6 +13,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
+import java.time.Duration
+import java.time.Instant
 
 @Service
 class CreateReportServiceImpl(
@@ -23,7 +25,7 @@ class CreateReportServiceImpl(
 ) : CreateReportService {
     /**
      * 로그인한 사용자만 신고할 수 있다. 같은 사용자가 같은 문서에 아직 처리되지 않은 신고를 이미 냈다면 중복으로 보고
-     * 409를 반환한다 — 처리된 뒤에는 다시 신고할 수 있다.
+     * 409를 반환한다 — 처리된 뒤에는 다시 신고할 수 있다. 한 사용자가 1시간에 낼 수 있는 신고는 10건이고 넘으면 429다.
      */
     @Transactional
     override fun execute(
@@ -38,6 +40,7 @@ class CreateReportServiceImpl(
             throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
         }
         reqDto.revision?.let { validateRevision(articleId, it) }
+        enforceRateLimit(reporterUserId)
         if (articleReportRepository.existsByReporterUserIdAndArticleIdAndStatus(
                 reporterUserId,
                 articleId,
@@ -52,6 +55,16 @@ class CreateReportServiceImpl(
         )
     }
 
+    /** 한 사용자가 여러 문서에 신고를 쏟아 관리자 목록을 채우는 것을 막는다. */
+    private fun enforceRateLimit(reporterUserId: Long) {
+        val since = Instant.now().minus(RATE_LIMIT_WINDOW)
+        if (articleReportRepository.countByReporterUserIdAndCreatedAtGreaterThanEqual(reporterUserId, since) >=
+            RATE_LIMIT_COUNT
+        ) {
+            throw ExpectedException("신고를 너무 자주 했습니다. 잠시 후 다시 시도해 주세요.", HttpStatus.TOO_MANY_REQUESTS)
+        }
+    }
+
     /** 한 번도 수정되지 않은 문서는 히스토리 행이 없지만 "생성 시점 그대로"인 리비전 1은 존재한다. */
     private fun validateRevision(
         articleId: Long,
@@ -59,5 +72,11 @@ class CreateReportServiceImpl(
     ) {
         val latest = articleHistoryRepository.findTopByArticleIdOrderByRevisionDesc(articleId)?.revision ?: 1
         if (revision > latest) throw ExpectedException("존재하지 않는 리비전입니다.", HttpStatus.BAD_REQUEST)
+    }
+
+    companion object {
+        /** 사용자당 [RATE_LIMIT_WINDOW] 동안 낼 수 있는 신고 수. */
+        const val RATE_LIMIT_COUNT = 10
+        val RATE_LIMIT_WINDOW: Duration = Duration.ofHours(1)
     }
 }

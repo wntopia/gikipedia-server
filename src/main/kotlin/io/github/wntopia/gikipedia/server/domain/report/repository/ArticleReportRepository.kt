@@ -17,6 +17,12 @@ interface ArticleReportRepository : JpaRepository<ArticleReportJpaEntity, Long> 
         status: ReportStatus,
     ): Boolean
 
+    /** 신고 남용 방지용 — [since] 이후 이 사용자가 낸 신고 수. */
+    fun countByReporterUserIdAndCreatedAtGreaterThanEqual(
+        reporterUserId: Long,
+        since: Instant,
+    ): Long
+
     /** 관리자용 신고 목록(최신 순). 문서 제목을 함께 가져온다. [status]가 null이면 전체. */
     @Query(
         value =

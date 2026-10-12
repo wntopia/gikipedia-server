@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -122,6 +123,19 @@ class ReportServicesTest {
         create.execute(1L, CreateReportReqDto("사유", 1), session)
         assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유", 2), session) }
             .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.BAD_REQUEST) })
+    }
+
+    @Test
+    @DisplayName("1시간에 낼 수 있는 신고 수를 넘으면 429이고 저장하지 않는다")
+    fun rateLimitsReports() {
+        loggedIn()
+        whenever(articleRepository.existsById(1L)).thenReturn(true)
+        whenever(reportRepository.countByReporterUserIdAndCreatedAtGreaterThanEqual(eq(10L), any()))
+            .thenReturn(CreateReportServiceImpl.RATE_LIMIT_COUNT.toLong())
+
+        assertThatThrownBy { create.execute(1L, CreateReportReqDto("사유"), session) }
+            .satisfies({ assertThat(status(it)).isEqualTo(HttpStatus.TOO_MANY_REQUESTS) })
+        verify(reportRepository, never()).save(any<ArticleReportJpaEntity>())
     }
 
     @Test

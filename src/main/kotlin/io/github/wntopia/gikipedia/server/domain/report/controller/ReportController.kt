@@ -15,7 +15,6 @@ import jakarta.servlet.http.HttpSession
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
-import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -27,7 +26,6 @@ import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "Report", description = "문서 신고 API. 신고 접수는 로그인, 목록 조회·처리는 관리자(ADMIN·ROOT) 권한이 필요하다.")
-@Validated
 @RestController
 @RequestMapping("/api/v1")
 class ReportController(
@@ -48,6 +46,7 @@ class ReportController(
             ApiResponse(responseCode = "401", description = "로그인하지 않음"),
             ApiResponse(responseCode = "404", description = "존재하지 않는 문서"),
             ApiResponse(responseCode = "409", description = "같은 문서에 처리되지 않은 신고가 이미 있음"),
+            ApiResponse(responseCode = "429", description = "1시간에 낼 수 있는 신고 수(10건)를 넘음"),
         ],
     )
     @PostMapping("/articles/{articleId}/reports")
