@@ -10,6 +10,7 @@ import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryC
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistorySegmentCodec
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
 import io.github.wntopia.gikipedia.server.global.diff.ArticleDiff
+import io.github.wntopia.gikipedia.server.global.dto.PageResDto
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -66,6 +67,9 @@ class ReconstructArticleServiceImpl(
             editor = resolved.editor,
             editedAt = resolved.editedAt,
             latest = revision == latestRevision,
+            summary = resolved.summary,
+            minorEdit = resolved.minorEdit,
+            charDelta = resolved.charDelta,
         )
     }
 
@@ -86,7 +90,14 @@ class ReconstructArticleServiceImpl(
             val target =
                 articleHistoryRepository.findByArticleIdAndRevision(articleId, revision)
                     ?: throw ExpectedException("존재하지 않는 리비전입니다.", HttpStatus.NOT_FOUND)
-            return ResolvedRevision(snapshot.content, target.editor, target.createdAt)
+            return ResolvedRevision(
+                snapshot.content,
+                target.editor,
+                target.createdAt,
+                target.summary,
+                target.minorEdit,
+                target.charDelta,
+            )
         }
 
         val neededCount = revision - snapshot.revision
@@ -100,7 +111,14 @@ class ReconstructArticleServiceImpl(
         if (rawDiffs.size == neededCount) {
             val content = rawDiffs.fold(snapshot.content) { acc, history -> articleDiff.apply(acc, history.diff) }
             val target = rawDiffs.last()
-            return ResolvedRevision(content, target.editor, target.createdAt)
+            return ResolvedRevision(
+                content,
+                target.editor,
+                target.createdAt,
+                target.summary,
+                target.minorEdit,
+                target.charDelta,
+            )
         }
 
         // raw row가 부족함 = 해당 interior 구간이 이미 압축됨. snapshot 자신에 붙은 페이로드에서 복원한다.
@@ -115,41 +133,106 @@ class ReconstructArticleServiceImpl(
             entries
                 .filter { it.revision <= revision }
                 .fold(snapshot.content) { acc, entry -> articleDiff.apply(acc, entry.diff) }
-        return ResolvedRevision(content, target.editor, target.createdAt)
+        return ResolvedRevision(
+            content,
+            target.editor,
+            target.createdAt,
+            target.summary,
+            target.minorEdit,
+            target.charDelta,
+        )
     }
 
     @Transactional(readOnly = true)
-    override fun listRevisions(articleId: Long): List<ArticleRevisionSummaryResDto> {
+    override fun listRevisions(
+        articleId: Long,
+        page: Int,
+        size: Int,
+    ): PageResDto<ArticleRevisionSummaryResDto> {
         if (!articleRepository.existsById(articleId)) {
             throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
         }
 
-        val rawSummaries =
-            articleHistoryRepository
-                .findByArticleIdOrderByRevisionDesc(articleId)
-                .map(ArticleRevisionSummaryResDto::from)
+        // 리비전 번호는 1부터 최신까지 빈틈없이 이어진다(압축된 리비전도 번호는 남는다). 그래서 전체 개수는 최신 리비전
+        // 번호이고, 최신 순 page번째 페이지는 리비전 번호 구간 [lo, hi]로 바로 계산된다 — 전체를 읽지 않고 그 구간만 조회한다.
+        val latest =
+            articleHistoryRepository.findTopByArticleIdOrderByRevisionDesc(articleId)?.revision
+                ?: return PageResDto(emptyList(), page, size, 0, false)
+        val hi = latest.toLong() - page.toLong() * size
+        if (hi < 1) return PageResDto(emptyList(), page, size, latest.toLong(), false)
+        val lo = maxOf(1L, hi - size + 1)
 
-        // TODO(성능 최적화, 후속 과제): 지금은 정확성 우선으로 압축된 스냅샷마다 페이로드를 풀어서 병합한다.
-        // 문서당 압축 구간 개수가 늘어나면 메타데이터(revision/editor/createdAt)만 압축하지 않는 별도 저장
-        // 방식으로 전환하는 것을 고려한다.
-        val compactedSummaries =
-            articleSnapshotRepository.findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId).flatMap {
-                articleHistorySegmentCodec.decode(requireNotNull(it.compressedInteriorPayload)).map { entry ->
-                    ArticleRevisionSummaryResDto(
-                        revision = entry.revision,
-                        editor = entry.editor,
-                        editedAt = entry.createdAt,
-                    )
-                }
+        val raw =
+            articleHistoryRepository
+                .findByArticleIdAndRevisionBetweenOrderByRevisionAsc(articleId, lo.toInt(), hi.toInt())
+                .map(ArticleRevisionSummaryResDto::from)
+        val missing = (lo.toInt()..hi.toInt()).toSet() - raw.map { it.revision }.toSet()
+        val compacted =
+            if (missing.isEmpty()) {
+                emptyList()
+            } else {
+                compactedSummaries(
+                    articleId,
+                    lo.toInt(),
+                    hi.toInt(),
+                    missing,
+                )
             }
 
-        return (rawSummaries + compactedSummaries).sortedByDescending { it.revision }
+        return PageResDto(
+            items = (raw + compacted).sortedByDescending { it.revision },
+            page = page,
+            size = size,
+            totalElements = latest.toLong(),
+            hasNext = lo > 1,
+        )
+    }
+
+    /**
+     * raw 행이 없는(압축된) 리비전의 메타데이터를 압축 페이로드에서 꺼낸다. 스냅샷 s의 페이로드는 s 다음부터 다음
+     * 스냅샷 직전까지를 담으므로, [hi]보다 낮은 스냅샷을 높은 것부터 보다가 [lo]보다 낮은 첫 스냅샷까지만 풀면 된다.
+     */
+    private fun compactedSummaries(
+        articleId: Long,
+        lo: Int,
+        hi: Int,
+        missing: Set<Int>,
+    ): List<ArticleRevisionSummaryResDto> {
+        val found = mutableListOf<ArticleRevisionSummaryResDto>()
+        for (snapshotRevision in articleSnapshotRepository.findCompactedRevisionsBelow(articleId, hi)) {
+            val payload =
+                articleSnapshotRepository
+                    .findByArticleIdAndRevision(
+                        articleId,
+                        snapshotRevision,
+                    )?.compressedInteriorPayload
+            payload?.let { bytes ->
+                articleHistorySegmentCodec
+                    .decode(bytes)
+                    .filter { it.revision in missing }
+                    .mapTo(found) { entry ->
+                        ArticleRevisionSummaryResDto(
+                            revision = entry.revision,
+                            editor = entry.editor,
+                            editedAt = entry.createdAt,
+                            summary = entry.summary,
+                            minorEdit = entry.minorEdit,
+                            charDelta = entry.charDelta,
+                        )
+                    }
+            }
+            if (snapshotRevision < lo || found.size >= missing.size) break
+        }
+        return found
     }
 
     private data class ResolvedRevision(
         val content: String,
         val editor: String,
         val editedAt: Instant?,
+        val summary: String?,
+        val minorEdit: Boolean,
+        val charDelta: Int?,
     )
 
     companion object {

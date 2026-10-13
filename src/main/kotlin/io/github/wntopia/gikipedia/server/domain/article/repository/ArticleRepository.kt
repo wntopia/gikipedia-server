@@ -2,13 +2,74 @@ package io.github.wntopia.gikipedia.server.domain.article.repository
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
+    fun existsByTitle(title: String): Boolean
+
+    /**
+     * 분류를 함께 가져오는 단건 조회. 분류는 지연 로딩이라, 트랜잭션 밖(정합성 배치 등)에서 `findById` 결과의
+     * `category.name`을 읽으면 `LazyInitializationException`이 난다.
+     */
+    @Query("SELECT a FROM ArticleJpaEntity a LEFT JOIN FETCH a.category WHERE a.id = :id")
+    fun findByIdWithCategory(
+        @Param("id") id: Long,
+    ): ArticleJpaEntity?
+
+    /** 조회수 flush용. 엔티티를 거치지 않는 벌크 UPDATE라 `updatedAt`(최근 변경)을 건드리지 않는다. */
+    @Modifying
+    @Query("UPDATE ArticleJpaEntity a SET a.viewCount = a.viewCount + :delta WHERE a.id = :id")
+    fun addViewCount(
+        @Param("id") id: Long,
+        @Param("delta") delta: Long,
+    ): Int
+
+    @Query("SELECT a.viewCount FROM ArticleJpaEntity a WHERE a.id = :id")
+    fun findViewCountById(
+        @Param("id") id: Long,
+    ): Long?
+
+    /** 조회수 순(전체 기간) 상위 문서. */
+    @Query(
+        "SELECT a.id AS id, a.title AS title, a.viewCount AS viewCount FROM ArticleJpaEntity a ORDER BY a.viewCount DESC, a.id ASC",
+    )
+    fun findPopular(pageable: Pageable): List<ArticlePopularView>
+
+    /** 분류에 속한 문서를 최근 수정 순으로. 본문은 읽지 않는다. */
+    @Query(
+        value =
+            "SELECT a.id AS id, a.title AS title, a.createdAt AS createdAt, a.updatedAt AS updatedAt " +
+                "FROM ArticleJpaEntity a WHERE a.category.id = :categoryId ORDER BY a.updatedAt DESC, a.id DESC",
+        countQuery = "SELECT COUNT(a) FROM ArticleJpaEntity a WHERE a.category.id = :categoryId",
+    )
+    fun findByCategory(
+        @Param("categoryId") categoryId: Long,
+        pageable: Pageable,
+    ): Page<ArticleRecentView>
+
+    /** 최근에 수정된 문서 순(수정 시각 내림차순). 본문은 읽지 않는다. */
+    @Query(
+        value =
+            "SELECT a.id AS id, a.title AS title, a.createdAt AS createdAt, a.updatedAt AS updatedAt " +
+                "FROM ArticleJpaEntity a ORDER BY a.updatedAt DESC, a.id DESC",
+        countQuery = "SELECT COUNT(a) FROM ArticleJpaEntity a",
+    )
+    fun findRecentlyUpdated(pageable: Pageable): Page<ArticleRecentView>
+
+    fun findByTitle(title: String): ArticleJpaEntity?
+
+    /** 제목 일괄 존재 여부 확인용. 본문 전체를 읽지 않도록 id와 제목만 가져온다. */
+    @Query("SELECT a.id AS id, a.title AS title FROM ArticleJpaEntity a WHERE a.title IN :titles")
+    fun findIdAndTitleByTitleIn(
+        @Param("titles") titles: Collection<String>,
+    ): List<ArticleTitleProjection>
+
     /**
      * 일일 정합성 검사 배치가 청크 단위로 훑을 article id 목록.
      *
@@ -35,4 +96,22 @@ interface ArticleRepository : JpaRepository<ArticleJpaEntity, Long> {
     fun findByIdForUpdate(
         @Param("id") id: Long,
     ): ArticleJpaEntity?
+}
+
+interface ArticleTitleProjection {
+    val id: Long
+    val title: String
+}
+
+interface ArticleRecentView {
+    val id: Long
+    val title: String
+    val createdAt: java.time.Instant
+    val updatedAt: java.time.Instant
+}
+
+interface ArticlePopularView {
+    val id: Long
+    val title: String
+    val viewCount: Long
 }

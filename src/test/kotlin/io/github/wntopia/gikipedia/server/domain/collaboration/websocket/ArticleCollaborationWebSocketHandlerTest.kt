@@ -6,8 +6,10 @@ import io.github.wntopia.gikipedia.server.domain.collaboration.model.Collaborati
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationCrdtStateStore
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationRoomRegistry
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.SaveCollaborativeRevisionService
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.config.CollaborationEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -77,7 +79,7 @@ class ArticleCollaborationWebSocketHandlerTest {
         whenever(session.uri).thenReturn(URI.create("ws://localhost/ws/articles/$articleId/collaboration"))
         whenever(session.attributes).thenReturn(attributes)
         whenever(session.isOpen).thenReturn(true)
-        whenever(authenticationReader.getEditorLabel(attributes)).thenReturn(editor)
+        whenever(authenticationReader.getEditor(attributes)).thenReturn(EditorIdentity(1L, editor))
         return session
     }
 
@@ -147,7 +149,7 @@ class ArticleCollaborationWebSocketHandlerTest {
     @Test
     @DisplayName("save 메시지를 받으면 저장 서비스를 호출하고 room 전체에 saved를 브로드캐스트한다")
     fun savesAndBroadcastsSaved() {
-        whenever(saveCollaborativeRevisionService.save(1L, "새 내용", "2412 홍길동")).thenReturn(5)
+        whenever(saveCollaborativeRevisionService.save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"))).thenReturn(5)
         val sessionA = fakeSession("a", 1L, "2412 홍길동")
         val sessionB = fakeSession("b", 1L, "2413 김철수")
         handler.afterConnectionEstablished(sessionA)
@@ -156,9 +158,29 @@ class ArticleCollaborationWebSocketHandlerTest {
         val save = CollaborationMessage(type = CollaborationMessage.TYPE_SAVE, content = "새 내용")
         handler.handleMessage(sessionA, TextMessage(objectMapper.writeValueAsString(save)))
 
-        verify(saveCollaborativeRevisionService).save(1L, "새 내용", "2412 홍길동")
+        verify(saveCollaborativeRevisionService).save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"))
         assertThat(messagesSentTo(sessionA)).anyMatch { it.type == CollaborationMessage.TYPE_SAVED && it.revision == 5 }
         assertThat(messagesSentTo(sessionB)).anyMatch { it.type == CollaborationMessage.TYPE_SAVED && it.revision == 5 }
+    }
+
+    @Test
+    @DisplayName("save 메시지의 편집 요약과 가벼운 수정 여부를 저장 서비스에 그대로 넘긴다")
+    fun passesEditMetadataToSaveService() {
+        whenever(saveCollaborativeRevisionService.save(any(), any(), any(), any())).thenReturn(6)
+        val session = fakeSession("a", 1L, "2412 홍길동")
+        handler.afterConnectionEstablished(session)
+
+        val save =
+            CollaborationMessage(
+                type = CollaborationMessage.TYPE_SAVE,
+                content = "새 내용",
+                summary = "오탈자 수정",
+                minorEdit = true,
+            )
+        handler.handleMessage(session, TextMessage(objectMapper.writeValueAsString(save)))
+
+        verify(saveCollaborativeRevisionService)
+            .save(1L, "새 내용", EditorIdentity(1L, "2412 홍길동"), EditMetadata("오탈자 수정", true))
     }
 
     @Test
@@ -179,7 +201,7 @@ class ArticleCollaborationWebSocketHandlerTest {
         // 실제 벽시계 대기 없이, 예약된 안전망 작업을 결정론적으로 직접 실행한다.
         runnableCaptor.firstValue.run()
 
-        verify(saveCollaborativeRevisionService).save(1L, "마지막 내용", "2412 홍길동")
+        verify(saveCollaborativeRevisionService).save(1L, "마지막 내용", EditorIdentity(1L, "2412 홍길동"))
         verify(collaborationCrdtStateStore).delete(1L)
         assertThat(collaborationRoomRegistry.findIfActive(1L)).isNull()
     }
@@ -229,7 +251,7 @@ class ArticleCollaborationWebSocketHandlerTest {
     @Test
     @DisplayName("save 처리 중 예외가 나도 세션을 강제 종료하지 않고 발신자에게 TYPE_ERROR를 보낸다")
     fun sendsErrorInsteadOfCrashingWhenSaveFails() {
-        whenever(saveCollaborativeRevisionService.save(any(), any(), any())).thenThrow(RuntimeException("저장 실패"))
+        whenever(saveCollaborativeRevisionService.save(any(), any(), any(), any())).thenThrow(RuntimeException("저장 실패"))
         val session = fakeSession("a", 1L, "2412 홍길동")
         handler.afterConnectionEstablished(session)
 
@@ -238,5 +260,19 @@ class ArticleCollaborationWebSocketHandlerTest {
 
         assertThat(messagesSentTo(session)).anyMatch { it.type == CollaborationMessage.TYPE_ERROR }
         verify(session, org.mockito.kotlin.never()).close(any<CloseStatus>())
+    }
+
+    @Test
+    @DisplayName("접속하면 room의 현재 편집자에 나오고, 나가면 비어 있다")
+    fun exposesCurrentEditorsWhileConnected() {
+        whenever(taskScheduler.schedule(any<Runnable>(), any<Instant>())).thenReturn(mock<ScheduledFuture<*>>())
+        val session = fakeSession("a", 1L, "2412 홍길동")
+
+        handler.afterConnectionEstablished(session)
+        val room = requireNotNull(collaborationRoomRegistry.findIfActive(1L))
+        assertThat(room.currentEditors().map { it.label }).containsExactly("2412 홍길동")
+
+        handler.afterConnectionClosed(session, CloseStatus.NORMAL)
+        assertThat(room.currentEditors()).isEmpty()
     }
 }

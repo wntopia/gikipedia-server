@@ -23,4 +23,6 @@ class ArticleMongoEntity(
     @field:Field("article_updated_at") val articleUpdatedAt: Instant,
     @field:Field("revision") val revision: Int,
     @field:Field("search_text") val searchText: String,
+    @field:Field("category_id") val categoryId: Long? = null,
+    @field:Field("category_name") val categoryName: String? = null,
 ) : BaseMongoEntity()

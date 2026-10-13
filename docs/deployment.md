@@ -95,6 +95,31 @@ yaml에 아래 값도 반드시 있어야 앱이 기동된다.
 - `spring.security.oauth2.client.registration.datagsm.client-id` / `client-secret`: 비어 있으면 DataGSM SDK가 기동을 거부한다.
 - `seaweedfs.filer-url` / `seaweedfs.public-url`: 최상위 `seaweedfs` 키다(`spring.cloud.*` 아님).
 
+## 스키마 수동 변경
+
+`ddl-auto: update`는 테이블·컬럼·제약을 새로 만들 뿐 기존 컬럼의 collation이나 nullability는 바꾸지 않는다. 유니크 제약 생성에 실패해도 경고 로그만 남기고 기동한다(`DROP_RECREATE_QUIETLY`). 이미 테이블이 있는 DB에는 아래를 배포 전후에 직접 확인한다.
+
+### `articles.title` collation (제목 유일성)
+
+제목은 대소문자·전각/반각을 무시하고 악센트는 구분한다(`utf8mb4_0900_as_ci`). 기존 테이블은 기본값(`utf8mb4_0900_ai_ci`)이라 직접 바꿔야 한다.
+
+```sql
+-- 1) 새 기준으로 겹치는 제목이 없는지 확인 (결과가 있으면 정리 후 진행)
+SELECT title COLLATE utf8mb4_0900_as_ci AS t, COUNT(*) FROM articles GROUP BY t HAVING COUNT(*) > 1;
+-- 2) collation 변경
+ALTER TABLE articles MODIFY title VARCHAR(255) COLLATE utf8mb4_0900_as_ci NOT NULL;
+-- 3) 배포 후 유니크 제약이 실제로 생성됐는지 확인 (uk_articles_title 행이 있어야 한다)
+SHOW INDEX FROM articles WHERE Key_name = 'uk_articles_title';
+```
+
+### `article_links.target_key` collation (역링크)
+
+`target_key`는 앱이 만든 비교 키라 바이너리로 비교한다(`utf8mb4_bin`). 테이블이 이미 있으면 직접 바꾼다.
+
+```sql
+ALTER TABLE article_links MODIFY target_key VARCHAR(255) COLLATE utf8mb4_bin NOT NULL;
+```
+
 > MySQL·MongoDB의 비밀번호는 볼륨이 처음 생성될 때만 적용된다. 이후 Secret을 바꾸려면 DB 안에서 비밀번호를 직접 변경하거나 볼륨을 지우고 다시 만들어야 한다.
 
 ## 문서 검색 최초 배포의 선행 조건

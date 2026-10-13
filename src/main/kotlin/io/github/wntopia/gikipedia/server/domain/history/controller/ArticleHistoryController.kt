@@ -5,6 +5,7 @@ import io.github.wntopia.gikipedia.server.domain.history.dto.response.ArticleRev
 import io.github.wntopia.gikipedia.server.domain.history.dto.response.CacheStatsResDto
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructArticleService
 import io.github.wntopia.gikipedia.server.domain.history.service.ReconstructCacheStatsService
+import io.github.wntopia.gikipedia.server.global.dto.PageResDto
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -12,9 +13,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.HttpSession
+import jakarta.validation.constraints.Max
+import jakarta.validation.constraints.Min
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "Article History", description = "문서 버전(리비전) 히스토리 조회 API. 리비전 번호는 1(생성 시점)부터 수정마다 1씩 증가한다.")
@@ -47,18 +51,28 @@ class ArticleHistoryController(
     /** 문서의 리비전 목록(최신 순). */
     @Operation(
         summary = "문서 리비전 목록 조회",
-        description = "문서의 모든 리비전을 최신 순으로 조회한다. 본문 없이 리비전 번호·편집자·편집 시각만 담긴다.",
+        description =
+            "문서의 리비전을 최신 순으로 페이지 단위로 조회한다. 본문 없이 리비전 번호·편집자·편집 시각·편집 요약·" +
+                "가벼운 수정 여부·글자 수 변화만 담긴다.",
     )
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "조회 성공"),
+            ApiResponse(responseCode = "400", description = "page 또는 size가 범위를 벗어남"),
             ApiResponse(responseCode = "404", description = "존재하지 않는 문서"),
         ],
     )
     @GetMapping("/{articleId}/revisions")
     fun listRevisions(
         @Parameter(description = "문서 ID", example = "1") @PathVariable articleId: Long,
-    ): List<ArticleRevisionSummaryResDto> = reconstructArticleService.listRevisions(articleId)
+        @Parameter(description = "페이지 번호 (0부터, 기본 0)", example = "0")
+        @RequestParam(defaultValue = "0")
+        @Min(0) page: Int,
+        @Parameter(description = "페이지 크기 (1~100, 기본 20)", example = "20")
+        @RequestParam(defaultValue = "20")
+        @Min(1)
+        @Max(100) size: Int,
+    ): PageResDto<ArticleRevisionSummaryResDto> = reconstructArticleService.listRevisions(articleId, page, size)
 
     /** 재구성 캐시 히트/미스 통계. */
     @Operation(

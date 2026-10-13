@@ -1,6 +1,8 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.service
 
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,12 +23,14 @@ class SaveCollaborativeRevisionService(
     fun save(
         articleId: Long,
         plainText: String,
-        editor: String,
+        editor: EditorIdentity,
+        metadata: EditMetadata = EditMetadata.NONE,
     ): Int? {
         val (_, revision) =
             articleUpdateTransactionHelper.update(
                 articleId = articleId,
                 editorProvider = { editor },
+                metadata = metadata,
             ) { article ->
                 val previousContent = article.content
                 article.update(plainText, article.imageUrl)

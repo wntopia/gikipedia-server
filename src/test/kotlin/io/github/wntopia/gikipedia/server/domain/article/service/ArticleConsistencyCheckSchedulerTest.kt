@@ -18,7 +18,6 @@ import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Pageable
 import org.springframework.test.util.ReflectionTestUtils
 import java.time.Instant
-import java.util.Optional
 
 private data class RevisionView(
     private val articleId: Long,
@@ -51,7 +50,7 @@ class ArticleConsistencyCheckSchedulerTest {
         ReflectionTestUtils.setField(article, "id", 1L)
         ReflectionTestUtils.setField(article, "createdAt", Instant.now())
         ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
-        whenever(articleRepository.findById(1L)).thenReturn(Optional.of(article))
+        whenever(articleRepository.findByIdWithCategory(1L)).thenReturn(article)
     }
 
     private fun mongoDoc(
@@ -75,7 +74,10 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer, never()).sync(any(), any(), any(), any(), any(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+            never(),
+        ).sync(any(), any(), any(), any(), any(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -88,7 +90,9 @@ class ArticleConsistencyCheckSchedulerTest {
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer).sync(eq(1L), eq(5), eq("제목"), eq("내용"), eq(null), any(), any())
+        verify(
+            articleMongoSynchronizer,
+        ).sync(eq(1L), eq(5), eq("제목"), eq("내용"), eq(null), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -100,7 +104,9 @@ class ArticleConsistencyCheckSchedulerTest {
         scheduler.checkAndRepair()
 
         // 히스토리가 없는(=한 번도 수정 안 된) 문서의 정답 리비전은 1이다.
-        verify(articleMongoSynchronizer).sync(eq(1L), eq(1), any(), any(), anyOrNull(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+        ).sync(eq(1L), eq(1), any(), any(), anyOrNull(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -110,11 +116,14 @@ class ArticleConsistencyCheckSchedulerTest {
             articleHistoryRepository.findLatestRevisionPerArticleIn(listOf(1L)),
         ).thenReturn(listOf(RevisionView(1L, 5)))
         whenever(articleMongoRepository.findByDocumentIdIn(listOf(1L))).thenReturn(listOf(mongoDoc(1L, 3)))
-        whenever(articleRepository.findById(1L)).thenReturn(Optional.empty())
+        whenever(articleRepository.findByIdWithCategory(1L)).thenReturn(null)
 
         scheduler.checkAndRepair()
 
-        verify(articleMongoSynchronizer, never()).sync(any(), any(), any(), any(), any(), any(), any())
+        verify(
+            articleMongoSynchronizer,
+            never(),
+        ).sync(any(), any(), any(), any(), any(), any(), any(), anyOrNull(), anyOrNull())
     }
 
     @Test
@@ -124,7 +133,7 @@ class ArticleConsistencyCheckSchedulerTest {
         whenever(articleRepository.findIdsAfter(eq(2L), any<Pageable>())).thenReturn(emptyList())
         whenever(articleHistoryRepository.findLatestRevisionPerArticleIn(any())).thenReturn(emptyList())
         whenever(articleMongoRepository.findByDocumentIdIn(any())).thenReturn(emptyList())
-        whenever(articleRepository.findById(2L)).thenReturn(Optional.empty())
+        whenever(articleRepository.findByIdWithCategory(2L)).thenReturn(null)
 
         scheduler.checkAndRepair()
 

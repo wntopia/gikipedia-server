@@ -5,11 +5,15 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.response.ArticleRes
 import io.github.wntopia.gikipedia.server.domain.article.service.ARTICLE_IMAGE_KEY_PREFIX
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
 import io.github.wntopia.gikipedia.server.domain.article.service.UpdateArticleService
+import io.github.wntopia.gikipedia.server.domain.category.repository.CategoryRepository
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.support.TransactionTemplate
+import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class UpdateArticleServiceImpl(
@@ -17,6 +21,7 @@ class UpdateArticleServiceImpl(
     private val authenticationReader: AuthenticationReader,
     private val transactionTemplate: TransactionTemplate,
     private val articleUpdateTransactionHelper: ArticleUpdateTransactionHelper,
+    private val categoryRepository: CategoryRepository,
 ) : UpdateArticleService {
     /**
      * SeaweedFS 업로드(블로킹 네트워크 호출)는 DB와 무관하므로 트랜잭션 밖에서 끝내둔다. `@Transactional`로 메서드
@@ -45,11 +50,19 @@ class UpdateArticleServiceImpl(
                 transactionTemplate.execute {
                     articleUpdateTransactionHelper.update(
                         articleId = articleId,
-                        editorProvider = { authenticationReader.getEditorLabel(session) },
+                        editorProvider = { authenticationReader.getEditor(session) },
+                        metadata = EditMetadata(reqDto.summary, reqDto.minorEdit),
                     ) { article ->
                         val previousContent = article.content
                         val imageUrl = uploadedImageUrl ?: article.imageUrl
                         article.update(reqDto.content, imageUrl)
+                        reqDto.categoryId?.let { categoryId ->
+                            article.changeCategory(
+                                categoryRepository.findById(categoryId).orElseThrow {
+                                    ExpectedException("존재하지 않는 분류입니다.", HttpStatus.NOT_FOUND)
+                                },
+                            )
+                        }
                         previousContent to reqDto.content
                     }
                 },

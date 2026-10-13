@@ -3,6 +3,8 @@ package io.github.wntopia.gikipedia.server.domain.article.service
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -25,8 +27,10 @@ class ArticleUpdateTransactionHelperTest {
     private val articleRepository = mock<ArticleRepository>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
 
-    private val helper = ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+    private val helper =
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore, articleLinkIndexer)
 
     private val article = ArticleJpaEntity(title = "제목", content = "이전 내용", imageUrl = "old.png")
 
@@ -42,7 +46,7 @@ class ArticleUpdateTransactionHelperTest {
     @DisplayName("존재하지 않는 article이면 editorProvider를 호출하기도 전에 404 예외를 던진다")
     fun notFoundThrowsBeforeResolvingEditor() {
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(null)
-        val editorProvider = mock<() -> String>()
+        val editorProvider = mock<() -> EditorIdentity>()
 
         assertThatThrownBy {
             helper.update(1L, editorProvider) { it.content to it.content }
@@ -53,10 +57,10 @@ class ArticleUpdateTransactionHelperTest {
     @Test
     @DisplayName("mutate가 반환한 before/after로 리비전을 기록하고, 결과 리비전을 그대로 반환한다")
     fun recordsAndReturnsRevision() {
-        whenever(articleHistoryRecorder.record(article, "이전 내용", "새 내용", "2412 홍길동")).thenReturn(5)
+        whenever(articleHistoryRecorder.record(article, "이전 내용", "새 내용", EditorIdentity(1L, "2412 홍길동"))).thenReturn(5)
 
         val (response, revision) =
-            helper.update(1L, { "2412 홍길동" }) {
+            helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) {
                 it.update("새 내용", it.imageUrl)
                 "이전 내용" to "새 내용"
             }
@@ -68,7 +72,7 @@ class ArticleUpdateTransactionHelperTest {
     @Test
     @DisplayName("응답을 커밋 이후 Redis 캐시에 채운다")
     fun cachesResponseAfterCommit() {
-        val (response, _) = helper.update(1L, { "2412 홍길동" }) { it.content to it.content }
+        val (response, _) = helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) { it.content to it.content }
 
         verify(articleCacheStore).putAfterCommit(response)
     }
@@ -76,9 +80,28 @@ class ArticleUpdateTransactionHelperTest {
     @Test
     @DisplayName("행 잠금 조회(findByIdForUpdate)를 사용한다")
     fun usesLockedFetch() {
-        helper.update(1L, { "2412 홍길동" }) { it.content to it.content }
+        helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) { it.content to it.content }
 
         verify(articleRepository).findByIdForUpdate(1L)
         verify(articleRepository, org.mockito.kotlin.never()).findById(any())
+    }
+
+    @Test
+    @DisplayName("본문이 바뀌면 바뀐 본문으로 링크 관계를 다시 맞춘다")
+    fun reindexesLinksWhenContentChanges() {
+        helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) {
+            it.update("[[링크]] 새 내용", it.imageUrl)
+            "이전 내용" to "[[링크]] 새 내용"
+        }
+
+        verify(articleLinkIndexer).reindex(1L, "제목", "[[링크]] 새 내용")
+    }
+
+    @Test
+    @DisplayName("본문이 그대로면(이미지만 교체 등) 링크를 다시 색인하지 않는다")
+    fun skipsReindexWhenContentUnchanged() {
+        helper.update(1L, { EditorIdentity(1L, "2412 홍길동") }) { it.content to it.content }
+
+        verify(articleLinkIndexer, org.mockito.kotlin.never()).reindex(any(), any(), any())
     }
 }

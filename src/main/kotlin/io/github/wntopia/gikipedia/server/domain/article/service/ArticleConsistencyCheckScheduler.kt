@@ -95,7 +95,7 @@ class ArticleConsistencyCheckScheduler(
         trueRevision: Int,
     ) {
         try {
-            val article = articleRepository.findById(articleId).orElse(null)
+            val article = articleRepository.findByIdWithCategory(articleId)
             if (article == null) {
                 log.warn("복구 대상 article을 MySQL에서 찾을 수 없음, 건너뜀 (articleId={})", articleId)
                 return
@@ -115,6 +115,8 @@ class ArticleConsistencyCheckScheduler(
                 imageUrl = article.imageUrl,
                 articleCreatedAt = createdAt,
                 articleUpdatedAt = updatedAt,
+                categoryId = article.category?.id,
+                categoryName = article.category?.name,
             )
         } catch (e: Exception) {
             log.error("article {} 복구 중 실패, 다음 article은 계속 진행", articleId, e)

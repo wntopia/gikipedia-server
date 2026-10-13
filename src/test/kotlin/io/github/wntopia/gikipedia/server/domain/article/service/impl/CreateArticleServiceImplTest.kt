@@ -4,19 +4,32 @@ import io.github.wntopia.gikipedia.server.domain.article.dto.request.CreateArtic
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
+import io.github.wntopia.gikipedia.server.domain.auth.dto.response.DataGsmUserInfoResDto
+import io.github.wntopia.gikipedia.server.domain.category.dto.response.CategoryResDto
+import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEntity
+import io.github.wntopia.gikipedia.server.domain.category.repository.CategoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.event.ArticleUpdatedEvent
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
+import io.github.wntopia.gikipedia.server.domain.user.service.ContributionRecorder
+import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
 import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
+import jakarta.servlet.http.HttpSession
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpStatus
 import org.springframework.test.util.ReflectionTestUtils
+import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
 /** 생성 시에도 Mongo 동기화 이벤트(baseline revision=1)를 발행하고 캐시를 채우는지 검증. */
@@ -25,13 +38,27 @@ class CreateArticleServiceImplTest {
     private val seaweedUploader = mock<SeaweedUploader>()
     private val eventPublisher = mock<ApplicationEventPublisher>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val authenticationReader = mock<AuthenticationReader>()
+    private val contributionRecorder = mock<ContributionRecorder>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
+    private val categoryRepository = mock<CategoryRepository>()
+    private val session = mock<HttpSession>()
 
     private val service =
-        CreateArticleServiceImpl(articleRepository, seaweedUploader, eventPublisher, articleCacheStore)
+        CreateArticleServiceImpl(
+            articleRepository,
+            seaweedUploader,
+            eventPublisher,
+            articleCacheStore,
+            authenticationReader,
+            contributionRecorder,
+            articleLinkIndexer,
+            categoryRepository,
+        )
 
     @BeforeEach
     fun setUp() {
-        whenever(articleRepository.save(any<ArticleJpaEntity>())).thenAnswer { invocation ->
+        whenever(articleRepository.saveAndFlush(any<ArticleJpaEntity>())).thenAnswer { invocation ->
             val entity = invocation.getArgument<ArticleJpaEntity>(0)
             ReflectionTestUtils.setField(entity, "id", 1L)
             // 이벤트 발행 시 createdAt/updatedAt을 requireNotNull로 확인하므로, 실제 저장 시
@@ -45,7 +72,7 @@ class CreateArticleServiceImplTest {
     @Test
     @DisplayName("생성 시 revision=1 baseline 이벤트를 발행한다")
     fun publishesBaselineEvent() {
-        service.execute(CreateArticleReqDto(title = "제목", content = "내용"))
+        service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session)
 
         val captor = argumentCaptor<ArticleUpdatedEvent>()
         verify(eventPublisher).publishEvent(captor.capture())
@@ -56,8 +83,111 @@ class CreateArticleServiceImplTest {
     @Test
     @DisplayName("생성 응답을 Redis 캐시에 채운다")
     fun cachesResponseAfterCommit() {
-        val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용"))
+        val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session)
 
         verify(articleCacheStore).putAfterCommit(response)
+    }
+
+    @Test
+    @DisplayName("제목은 정규화한 뒤 저장한다")
+    fun savesNormalizedTitle() {
+        service.execute(CreateArticleReqDto(title = "  기숙사   생활 ", content = "내용"), session)
+
+        val captor = argumentCaptor<ArticleJpaEntity>()
+        verify(articleRepository).saveAndFlush(captor.capture())
+        assertThat(captor.firstValue.title).isEqualTo("기숙사 생활")
+    }
+
+    @Test
+    @DisplayName("이미 있는 제목이면 이미지를 올리기 전에 409를 던진다")
+    fun rejectsDuplicateTitleBeforeUpload() {
+        whenever(articleRepository.existsByTitle("제목")).thenReturn(true)
+
+        assertThatThrownBy { service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            }
+        verify(seaweedUploader, never()).upload(any(), any())
+        verify(articleRepository, never()).saveAndFlush(any<ArticleJpaEntity>())
+    }
+
+    @Test
+    @DisplayName("동시 생성으로 유니크 제약에 걸려도 409로 변환한다")
+    fun convertsUniqueViolationToConflict() {
+        whenever(
+            articleRepository.saveAndFlush(any<ArticleJpaEntity>()),
+        ).thenThrow(DataIntegrityViolationException("dup"))
+
+        assertThatThrownBy { service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(HttpStatus.CONFLICT)
+            }
+    }
+
+    @Test
+    @DisplayName("로그인한 사용자가 만들면 생성자를 기록하고 생성 기여를 남긴다")
+    fun recordsCreatorWhenLoggedIn() {
+        whenever(
+            authenticationReader.getCurrentUser(session),
+        ).thenReturn(DataGsmUserInfoResDto(10L, null, "USER", true, null))
+
+        service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session)
+
+        val captor = argumentCaptor<ArticleJpaEntity>()
+        verify(articleRepository).saveAndFlush(captor.capture())
+        assertThat(captor.firstValue.createdByUserId).isEqualTo(10L)
+        verify(contributionRecorder).recordCreate(10L, 1L)
+    }
+
+    @Test
+    @DisplayName("비로그인 생성은 생성자 없이 허용한다")
+    fun allowsAnonymousCreate() {
+        whenever(authenticationReader.getCurrentUser(session)).thenReturn(null)
+
+        service.execute(CreateArticleReqDto(title = "제목", content = "내용"), session)
+
+        val captor = argumentCaptor<ArticleJpaEntity>()
+        verify(articleRepository).saveAndFlush(captor.capture())
+        assertThat(captor.firstValue.createdByUserId).isNull()
+        verify(contributionRecorder).recordCreate(null, 1L)
+    }
+
+    @Test
+    @DisplayName("생성한 본문의 위키 링크를 색인한다")
+    fun indexesLinksOfNewArticle() {
+        service.execute(CreateArticleReqDto(title = "제목", content = "[[다른 문서]] 참고"), session)
+
+        verify(articleLinkIndexer).reindex(1L, "제목", "[[다른 문서]] 참고")
+    }
+
+    @Test
+    @DisplayName("분류를 지정하면 문서에 분류가 붙고 동기화 이벤트에도 분류가 실린다")
+    fun attachesCategory() {
+        val category = CategoryJpaEntity("학교").also { ReflectionTestUtils.setField(it, "id", 3L) }
+        whenever(categoryRepository.findById(3L)).thenReturn(java.util.Optional.of(category))
+
+        val response = service.execute(CreateArticleReqDto(title = "제목", content = "내용", categoryId = 3L), session)
+
+        assertThat(response.category).isEqualTo(CategoryResDto(3L, "학교"))
+        val captor = argumentCaptor<ArticleUpdatedEvent>()
+        verify(eventPublisher).publishEvent(captor.capture())
+        assertThat(captor.firstValue.categoryId).isEqualTo(3L)
+        assertThat(captor.firstValue.categoryName).isEqualTo("학교")
+    }
+
+    @Test
+    @DisplayName("없는 분류를 지정하면 이미지를 올리기 전에 404를 던진다")
+    fun rejectsUnknownCategory() {
+        whenever(categoryRepository.findById(99L)).thenReturn(java.util.Optional.empty())
+
+        assertThatThrownBy {
+            service.execute(
+                CreateArticleReqDto(title = "제목", content = "내용", categoryId = 99L),
+                session,
+            )
+        }.isInstanceOfSatisfying(ExpectedException::class.java) {
+            assertThat(it.statusCode).isEqualTo(HttpStatus.NOT_FOUND)
+        }
+        verify(seaweedUploader, never()).upload(any(), any())
     }
 }

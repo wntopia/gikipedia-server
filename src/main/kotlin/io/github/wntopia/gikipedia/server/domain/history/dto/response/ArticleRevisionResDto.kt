@@ -26,4 +26,10 @@ data class ArticleRevisionResDto(
     /** 이 리비전이 문서의 현재 최신인지 여부. 최신 리비전은 이후 수정으로 바뀔 수 있어 캐시하지 않는다(캐시 unless 판정용). */
     @field:Schema(description = "이 리비전이 현재 최신 버전인지 여부")
     val latest: Boolean,
+    @field:Schema(description = "편집 요약 (없으면 null)", example = "오탈자 수정")
+    val summary: String? = null,
+    @field:Schema(description = "가벼운 수정 여부")
+    val minorEdit: Boolean = false,
+    @field:Schema(description = "직전 리비전 대비 글자 수 변화 (이 기능 이전 리비전은 null)", example = "-12")
+    val charDelta: Int? = null,
 ) : Serializable

@@ -19,15 +19,21 @@ class AuthenticationReader {
     fun getCurrentUser(attributes: Map<String, Any?>): DataGsmUserInfoResDto? =
         attributes[OAuthSessionAttributes.DATAGSM_USER_INFO] as? DataGsmUserInfoResDto
 
-    /** 수정자 식별 문자열("학번 이름", 예: "2412 홍길동")을 만든다. 인증 정보가 없으면 401. */
-    fun getEditorLabel(session: HttpSession): String = editorLabelOf(getCurrentUser(session))
+    /**
+     * 수정자를 만든다. 라벨은 "학번 이름"(예: "2412 홍길동")이며, 학생 계정이 아니거나 인증 정보가 없으면 401.
+     */
+    fun getEditor(session: HttpSession): EditorIdentity = editorOf(getCurrentUser(session))
 
-    fun getEditorLabel(attributes: Map<String, Any?>): String = editorLabelOf(getCurrentUser(attributes))
+    fun getEditor(attributes: Map<String, Any?>): EditorIdentity = editorOf(getCurrentUser(attributes))
 
-    private fun editorLabelOf(userInfo: DataGsmUserInfoResDto?): String {
+    private fun editorOf(userInfo: DataGsmUserInfoResDto?): EditorIdentity {
         val student = userInfo?.student ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
-        return "${student.studentNumber ?: "?"} ${student.name ?: "?"}"
+        return EditorIdentity(userInfo.id, "${student.studentNumber ?: "?"} ${student.name ?: "?"}", student.name)
     }
+
+    /** 로그인한 사용자의 DataGSM 계정 id. 로그인하지 않았거나 계정 id가 없으면 401. */
+    fun requireUserId(session: HttpSession): Long =
+        getCurrentUser(session)?.id ?: throw ExpectedException("인증이 필요합니다.", HttpStatus.UNAUTHORIZED)
 
     fun requireAdmin(session: HttpSession) {
         val role =

@@ -54,6 +54,9 @@ spring:
       completion-mode: delete
 
 app:
+  stats:
+    # 위키 현황 API(/api/v1/stats)의 집계 결과를 재사용하는 시간(초)
+    cache-seconds: ${WIKI_STATS_CACHE_SECONDS:60}
   cache:
     article-revision:
       max-entries: ${ARTICLE_REVISION_CACHE_MAX_ENTRIES:10000}
@@ -75,6 +78,11 @@ article:
     compaction:
       # 원본 히스토리 row를 삭제하는 파괴적 배치라, 문제 생기면 재배포만으로 끌 수 있도록 플래그로 둔다.
       enabled: ${ARTICLE_HISTORY_COMPACTION_ENABLED:true}
+  views:
+    # 같은 사용자가 같은 문서를 다시 열어도 조회수를 올리지 않는 시간(분)
+    dedupe-minutes: ${ARTICLE_VIEWS_DEDUPE_MINUTES:30}
+    # Redis에 쌓인 조회수를 MySQL에 반영하는 주기(밀리초). 인기 문서 목록이 이만큼 늦게 갱신된다.
+    flush-interval-ms: ${ARTICLE_VIEWS_FLUSH_INTERVAL_MS:30000}
   read:
     # redis-mongo: Redis→Mongo 순으로 조회(신규 경로). mysql: 기존처럼 MySQL 직접 조회.
     # 문제 생길 때 재배포만으로 되돌릴 수 있도록 플래그로 둔다.

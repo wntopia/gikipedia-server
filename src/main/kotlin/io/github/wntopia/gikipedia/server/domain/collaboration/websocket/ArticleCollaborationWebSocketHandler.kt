@@ -6,8 +6,10 @@ import io.github.wntopia.gikipedia.server.domain.collaboration.model.Collaborati
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationCrdtStateStore
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.CollaborationRoomRegistry
 import io.github.wntopia.gikipedia.server.domain.collaboration.service.SaveCollaborativeRevisionService
+import io.github.wntopia.gikipedia.server.domain.history.dto.EditMetadata
 import io.github.wntopia.gikipedia.server.global.config.CollaborationEnvironment
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.TaskScheduler
 import org.springframework.stereotype.Component
@@ -41,8 +43,8 @@ class ArticleCollaborationWebSocketHandler(
 ) : TextWebSocketHandler() {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    /** 세션 id → editor 라벨("학번 이름"). handshake 인증 결과를 연결 종료까지 들고 있기 위함. */
-    private val editorLabelsBySessionId = ConcurrentHashMap<String, String>()
+    /** 세션 id → 편집자. handshake 인증 결과를 연결 종료까지 들고 있기 위함. */
+    private val editorsBySessionId = ConcurrentHashMap<String, EditorIdentity>()
 
     override fun afterConnectionEstablished(session: WebSocketSession) {
         val articleId = ArticleCollaborationPaths.articleIdOf(session.uri)
@@ -61,9 +63,10 @@ class ArticleCollaborationWebSocketHandler(
                     return
                 }
 
-        editorLabelsBySessionId[session.id] = authenticationReader.getEditorLabel(session.attributes)
+        val editor = authenticationReader.getEditor(session.attributes)
+        editorsBySessionId[session.id] = editor
         val decoratedSession = ConcurrentWebSocketSessionDecorator(session, SEND_TIME_LIMIT_MS, BUFFER_SIZE_LIMIT_BYTES)
-        val room = collaborationRoomRegistry.joinOrCreate(articleId, decoratedSession)
+        val room = collaborationRoomRegistry.joinOrCreate(articleId, decoratedSession, editor)
         room.sendTo(session.id, bootstrap)
     }
 
@@ -111,7 +114,7 @@ class ArticleCollaborationWebSocketHandler(
         session: WebSocketSession,
         closeStatus: CloseStatus,
     ) {
-        editorLabelsBySessionId.remove(session.id)
+        editorsBySessionId.remove(session.id)
         val articleId = ArticleCollaborationPaths.articleIdOf(session.uri) ?: return
         val room = collaborationRoomRegistry.findIfActive(articleId) ?: return
 
@@ -145,7 +148,7 @@ class ArticleCollaborationWebSocketHandler(
         sessionId: String,
         incoming: CollaborationMessage,
     ) {
-        val editor = editorLabelsBySessionId[sessionId] ?: return
+        val editor = editorsBySessionId[sessionId] ?: return
         incoming.dataB64?.let { collaborationCrdtStateStore.put(articleId, Base64.getDecoder().decode(it)) }
         incoming.content?.let { room.rememberSync(it, editor) }
     }
@@ -156,10 +159,16 @@ class ArticleCollaborationWebSocketHandler(
         sessionId: String,
         incoming: CollaborationMessage,
     ) {
-        val editor = editorLabelsBySessionId[sessionId] ?: return
+        val editor = editorsBySessionId[sessionId] ?: return
         val plainText = incoming.content ?: return
 
-        val revision = saveCollaborativeRevisionService.save(articleId, plainText, editor)
+        val revision =
+            saveCollaborativeRevisionService.save(
+                articleId,
+                plainText,
+                editor,
+                EditMetadata(incoming.summary, incoming.minorEdit ?: false),
+            )
         room.rememberSync(plainText, editor)
         room.broadcast(CollaborationMessage(type = CollaborationMessage.TYPE_SAVED, revision = revision))
     }
@@ -189,7 +198,7 @@ class ArticleCollaborationWebSocketHandler(
         }
 
         val plainText = room.lastKnownPlainText
-        val editor = room.lastEditorLabel
+        val editor = room.lastEditor
         if (plainText != null && editor != null) {
             runCatching { saveCollaborativeRevisionService.save(articleId, plainText, editor) }
                 .onFailure { log.warn("공동편집 안전망 저장 실패 (articleId={})", articleId, it) }
