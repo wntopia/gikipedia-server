@@ -56,7 +56,7 @@ class ArticleConsistencyCheckSchedulerTest {
     private fun mongoDoc(
         documentId: Long,
         revision: Int,
-    ) = ArticleMongoEntity(documentId, "t", "c", null, Instant.now(), Instant.now(), revision)
+    ) = ArticleMongoEntity(documentId, "t", "c", null, Instant.now(), Instant.now(), revision, "c")
 
     /** id 청크 1개만 돌려주고 다음 호출에선 빈 목록을 줘서 스캔 루프가 끝나게 하는 스텁. */
     private fun stubSingleChunk(articleIds: List<Long>) {

@@ -79,6 +79,7 @@ class QueryArticleServiceImplTest {
                 articleCreatedAt = Instant.now(),
                 articleUpdatedAt = Instant.now(),
                 revision = 2,
+                searchText = "내용",
             )
         whenever(articleMongoRepository.findByDocumentId(1L)).thenReturn(mongoEntity)
 
