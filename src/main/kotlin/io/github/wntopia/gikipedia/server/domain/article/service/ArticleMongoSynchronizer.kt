@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.article.service
 
 import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleMongoEntity
+import io.github.wntopia.gikipedia.server.domain.article.util.ArticleSearchTextConverter
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.data.mongodb.core.MongoTemplate
 import org.springframework.data.mongodb.core.query.Criteria
@@ -35,6 +36,7 @@ class ArticleMongoSynchronizer(
         articleCreatedAt: Instant,
         articleUpdatedAt: Instant,
     ) {
+        val searchText = ArticleSearchTextConverter.convert(content)
         val byDocumentId = Query(Criteria.where("document_id").`is`(articleId))
         val upsert =
             Update()
@@ -42,6 +44,7 @@ class ArticleMongoSynchronizer(
                 .setOnInsert("document_id", articleId)
                 .setOnInsert("title", title)
                 .setOnInsert("content", content)
+                .setOnInsert("search_text", searchText)
                 .setOnInsert("image_url", imageUrl)
                 .setOnInsert("article_created_at", articleCreatedAt)
                 .setOnInsert("article_updated_at", articleUpdatedAt)
@@ -75,6 +78,7 @@ class ArticleMongoSynchronizer(
             Update()
                 .set("title", title)
                 .set("content", content)
+                .set("search_text", searchText)
                 .set("image_url", imageUrl)
                 .set("article_created_at", articleCreatedAt)
                 .set("article_updated_at", articleUpdatedAt),
