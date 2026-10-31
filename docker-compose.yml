@@ -1,3 +1,10 @@
+# json-file 드라이버는 기본적으로 로그 크기 제한이 없어 디스크를 가득 채울 수 있으므로 상한을 둔다.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # DB 비밀번호는 기본값 없이 환경변수(.env)로만 받는다. CD가 GitHub Secrets로 .env를 생성한다.
   # DB 포트는 호스트의 127.0.0.1에만 바인딩한다.
@@ -5,6 +12,7 @@ services:
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-gikipedia}
       MYSQL_USER: ${MYSQL_USER:-gikipedia}
@@ -24,6 +32,7 @@ services:
   mongodb:
     image: mongo:7
     restart: unless-stopped
+    logging: *default-logging
     # WiredTiger 캐시 기본값은 (RAM - 1GB)의 50%라 서버 메모리를 크게 잡아먹으므로 상한을 둔다.
     command: ["--wiredTigerCacheSizeGB", "0.5"]
     environment:
@@ -43,6 +52,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
@@ -60,6 +70,7 @@ services:
     image: chrislusf/seaweedfs:3.85
     command: master -ip=seaweedfs-master -mdir=/data
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "9333:9333"
     volumes:
@@ -72,6 +83,7 @@ services:
     # 이 매핑은 순수히 사람이 볼륨 서버 상태를 직접 확인할 때만 쓰인다.
     command: volume -mserver=seaweedfs-master:9333 -ip=seaweedfs-volume -dir=/data -port=8080
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "18080:8080"
     volumes:
@@ -83,6 +95,7 @@ services:
     image: chrislusf/seaweedfs:3.85
     command: filer -master=seaweedfs-master:9333 -ip=seaweedfs-filer -port=8888
     restart: unless-stopped
+    logging: *default-logging
     ports:
       - "8888:8888"
     volumes:
