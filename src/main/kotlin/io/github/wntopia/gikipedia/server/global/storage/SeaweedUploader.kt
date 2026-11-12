@@ -22,6 +22,8 @@ class SeaweedUploader(
         file: MultipartFile,
         keyPrefix: String,
     ): String {
+        // 설정 누락은 업로드 전에 드러내 저장소에 주인 없는 파일을 남기지 않는다.
+        val publicUrlBase = publicUrlBase()
         val key = "$keyPrefix/${UUID.randomUUID()}${extensionOf(file.originalFilename)}"
 
         try {
@@ -40,7 +42,7 @@ class SeaweedUploader(
             throw ExpectedException("이미지 업로드에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
-        return "${publicUrlBase()}/$key"
+        return "$publicUrlBase/$key"
     }
 
     private fun publicUrlBase(): String {
