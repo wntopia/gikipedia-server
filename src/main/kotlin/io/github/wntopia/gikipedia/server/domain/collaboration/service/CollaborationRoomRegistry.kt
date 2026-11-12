@@ -1,6 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.service
 
 import io.github.wntopia.gikipedia.server.domain.collaboration.model.CollaborationRoom
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
 import org.springframework.stereotype.Component
 import org.springframework.web.socket.WebSocketSession
 import tools.jackson.databind.ObjectMapper
@@ -27,11 +28,12 @@ class CollaborationRoomRegistry(
     fun joinOrCreate(
         articleId: Long,
         session: WebSocketSession,
+        editor: EditorIdentity? = null,
     ): CollaborationRoom =
         rooms.compute(articleId) { _, existing ->
             val room = existing ?: CollaborationRoom(articleId, objectMapper)
             room.cancelPendingSafetyNet()
-            room.join(session)
+            room.join(session, editor)
             room
         }!!
 

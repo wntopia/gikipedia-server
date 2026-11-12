@@ -1,5 +1,7 @@
 package io.github.wntopia.gikipedia.server.domain.collaboration.model
 
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
+import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatCode
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -74,5 +76,32 @@ class CollaborationRoomTest {
         room.broadcast(CollaborationMessage(type = "update"))
 
         verify(closed, never()).sendMessage(any())
+    }
+
+    @Test
+    @DisplayName("접속한 편집자가 현재 편집자로 나오고, 나가면 빠진다")
+    fun tracksCurrentEditors() {
+        room.join(fakeSession("a"), EditorIdentity(1L, "2412 홍길동", "홍길동"))
+        room.join(fakeSession("b"), EditorIdentity(2L, "2413 김철수", "김철수"))
+
+        assertThat(room.currentEditors().map { it.name }).containsExactly("홍길동", "김철수")
+
+        room.leave("a")
+        assertThat(room.currentEditors().map { it.name }).containsExactly("김철수")
+
+        room.leave("b")
+        assertThat(room.currentEditors()).isEmpty()
+    }
+
+    @Test
+    @DisplayName("같은 사용자가 여러 탭으로 접속해도 한 명으로 센다")
+    fun countsSameUserOnce() {
+        val editor = EditorIdentity(1L, "2412 홍길동", "홍길동")
+        room.join(fakeSession("a"), editor)
+        room.join(fakeSession("b"), editor)
+
+        assertThat(room.currentEditors()).hasSize(1)
+        assertThat(room.leave("a")).isFalse()
+        assertThat(room.currentEditors()).hasSize(1)
     }
 }

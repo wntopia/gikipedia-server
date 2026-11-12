@@ -72,6 +72,9 @@ class ArticleHistoryCompactor(
                     editor = it.editor,
                     diff = it.diff,
                     createdAt = requireNotNull(it.createdAt) { "history.createdAt이 null입니다 (id=${it.id})" },
+                    summary = it.summary,
+                    minorEdit = it.minorEdit,
+                    charDelta = it.charDelta,
                 )
             }
 

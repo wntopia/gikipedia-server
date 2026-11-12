@@ -1,0 +1,157 @@
+# 배포(CD) 환경변수 가이드
+
+`.github/workflows/cd-prod.yml`, `.github/workflows/cd-stage.yml`이 사용하는 GitHub Actions Secrets 목록이다.
+Repo → Settings → Secrets and variables → Actions → New repository secret에서 등록한다.
+
+## SSH 접속 정보
+
+| Secret | 설명 | 예시 |
+|---|---|---|
+| `PROD_SSH_HOST` | 운영 서버 호스트 | `ssh.gsmsv.site` |
+| `PROD_SSH_USERNAME` | SSH 접속 계정 | `ubuntu` |
+| `PROD_SSH_KEY` | SSH 접속용 개인키 전문 (패스프레이즈 없는 키) | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
+| `PROD_SSH_PORT` | SSH 포트 | `24143` |
+| `STAGE_SSH_HOST` | 스테이지 서버 호스트 | |
+| `STAGE_SSH_USERNAME` | 스테이지 SSH 접속 계정 | `ubuntu` |
+| `STAGE_SSH_KEY` | 스테이지 SSH 개인키 전문 | |
+| `STAGE_SSH_PORT` | 스테이지 SSH 포트 | |
+
+## 배포 경로
+
+| Secret | 설명 | 예시 |
+|---|---|---|
+| `PROD_APP_DIR` | 운영 서버에서 저장소를 clone/pull할 절대경로 | `/home/ubuntu/gikipedia-server` |
+| `STAGE_APP_DIR` | 스테이지 서버 저장소 경로 | `/home/ubuntu/gikipedia-server-stage` |
+
+## application.yaml 전문
+
+`src/main/resources/application.yaml`은 `.gitignore`에 등록되어 있고, CD 파이프라인이 배포 시점에
+아래 Secret 전문으로 이 경로를 덮어쓴다. 로컬 템플릿은 `application.yaml.example` 참고.
+
+| Secret | 설명 |
+|---|---|
+| `PROD_APPLICATION_YAML` | 운영용 `application.yaml` 전체 내용 (실제 값 채운 버전) |
+| `STAGE_APPLICATION_YAML` | 스테이지용 `application.yaml` 전체 내용 |
+
+### `application.yaml` 안에 채워야 할 값 (환경변수로 참조되는 항목)
+
+`application.yaml.example`에서 `${VAR:default}` 형태로 선언된 항목들이다.
+Secret에 넣는 `application.yaml` 전문에는 아래 값들을 실제 값으로 바로 채워 넣거나,
+서버 환경변수로 주입한다.
+
+| 환경변수 | 용도 |
+|---|---|
+| `DATAGSM_OAUTH_CLIENT_ID` | DataGSM OAuth 클라이언트 ID |
+| `DATAGSM_OAUTH_CLIENT_SECRET` | DataGSM OAuth 클라이언트 시크릿 |
+| `DATAGSM_OAUTH_REDIRECT_URI` | OAuth 콜백 URL (운영 도메인 기준, `localhost` 아님) |
+| `DATAGSM_OAUTH_SCOPE` | OAuth 스코프 |
+| `DATAGSM_OAUTH_SUCCESS_REDIRECT_URI` | 로그인 성공 리다이렉트 경로 |
+| `DATAGSM_OAUTH_FAILURE_REDIRECT_URI` | 로그인 실패 리다이렉트 경로 |
+| `DATAGSM_OAUTH_AUTHORIZATION_URI` | DataGSM OAuth authorization 엔드포인트 |
+| `DATAGSM_OAUTH_TOKEN_URI` | DataGSM OAuth token 엔드포인트 |
+| `DATAGSM_OAUTH_USER_INFO_URI` | DataGSM OAuth user-info 엔드포인트 |
+| `SEAWEEDFS_FILER_URL` | SeaweedFS Filer 엔드포인트. 앱은 systemd로 호스트에서 직접 뜨고 SeaweedFS는 `docker-compose.yml`로 같은 호스트에 포트가 바인딩되므로 `http://localhost:8888`을 쓴다(컨테이너 서비스명이 아님). |
+| `SEAWEEDFS_PUBLIC_URL` | SeaweedFS 퍼블릭 URL (이미지 조회에 쓰이는 base URL). 클라이언트(브라우저)가 직접 접근하므로 서버가 외부에서 접근 가능한 도메인/IP여야 한다 — `localhost`는 운영에서 쓸 수 없다. |
+| `ARTICLE_REVISION_CACHE_MAX_ENTRIES` | 아티클 리비전 캐시 최대 엔트리 수 (기본값 있음) |
+| `ARTICLE_REVISION_CACHE_TTL_HOURS` | 아티클 리비전 캐시 TTL (기본값 있음) |
+| `COLLABORATION_CRDT_TTL_HOURS` | 협업 CRDT TTL (기본값 있음) |
+| `COLLABORATION_LEAVE_DEBOUNCE_SECONDS` | 협업 퇴장 디바운스 시간 (기본값 있음) |
+| `ARTICLE_SNAPSHOT_INTERVAL` | 아티클 스냅샷 간격 (기본값 있음) |
+| `ARTICLE_HISTORY_COMPACTION_ENABLED` | 히스토리 압축 배치 활성화 여부 (기본값 있음) |
+| `ARTICLE_READ_SOURCE` | 아티클 조회 소스 (`redis-mongo` / `mysql`, 기본값 있음) |
+| `ARTICLE_CACHE_TTL_MINUTES` | 아티클 캐시 TTL (기본값 있음) |
+
+> **참고:** MongoDB / Redis / MySQL 연결 정보(`spring.mongodb.uri`,
+> `spring.data.redis.host`/`port`, `spring.datasource.url`/`username`/`password` 등)는
+> 현재 `application.yaml.example`에 플레이스홀더로 선언되어 있지 않다.
+> 운영에서 실제 DB에 연결하려면 `PROD_APPLICATION_YAML` / `STAGE_APPLICATION_YAML` 전문에
+> 해당 접속 정보를 직접 추가해야 한다.
+
+## DB 비밀번호 (docker compose)
+
+MySQL·MongoDB·Redis는 `docker-compose.yml`로 앱과 같은 호스트에 뜨며, 포트는 `127.0.0.1`에만 바인딩된다.
+비밀번호는 기본값이 없고, CD가 아래 Secret으로 배포 디렉터리에 `.env`(권한 600, gitignore 대상)를 만들어 주입한다.
+값에 작은따옴표(`'`)는 쓰지 않는다. 계정명·DB명은 기본값 `gikipedia`를 쓴다.
+
+| Secret | 설명 |
+|---|---|
+| `STAGE_MYSQL_PASSWORD` / `PROD_MYSQL_PASSWORD` | MySQL `gikipedia` 계정 비밀번호 |
+| `STAGE_MYSQL_ROOT_PASSWORD` / `PROD_MYSQL_ROOT_PASSWORD` | MySQL root 비밀번호 |
+| `STAGE_MONGO_PASSWORD` / `PROD_MONGO_PASSWORD` | MongoDB root(`gikipedia`) 비밀번호 |
+| `STAGE_REDIS_PASSWORD` / `PROD_REDIS_PASSWORD` | Redis `requirepass` |
+
+`*_APPLICATION_YAML`의 접속 정보도 같은 값이어야 한다.
+
+- `spring.datasource.username`: `gikipedia`
+- `spring.datasource.password`: `*_MYSQL_PASSWORD`
+- `spring.mongodb.uri`: `"mongodb://gikipedia:<*_MONGO_PASSWORD>@localhost:27017/gikipedia?authSource=admin"`
+  - Spring Boot 4부터 `spring.data.mongodb.uri`가 아니라 `spring.mongodb.uri`이다(`auto-index-creation`은 `spring.data.mongodb` 그대로).
+  - 따옴표로 감싸고, 비밀번호의 `@ : / % ? #`는 URL 인코딩한다.
+- `spring.data.redis.password`: `*_REDIS_PASSWORD`
+
+yaml에 아래 값도 반드시 있어야 앱이 기동된다.
+
+- `spring.jpa.hibernate.ddl-auto: update`: 마이그레이션 도구가 없으므로 빈 DB에 테이블(`event_publication` 등)을 만든다.
+- `spring.security.oauth2.client.registration.datagsm.client-id` / `client-secret`: 비어 있으면 DataGSM SDK가 기동을 거부한다.
+- `seaweedfs.filer-url` / `seaweedfs.public-url`: 최상위 `seaweedfs` 키다(`spring.cloud.*` 아님).
+
+## 스키마 수동 변경
+
+`ddl-auto: update`는 테이블·컬럼·제약을 새로 만들 뿐 기존 컬럼의 collation이나 nullability는 바꾸지 않는다. 유니크 제약 생성에 실패해도 경고 로그만 남기고 기동한다(`DROP_RECREATE_QUIETLY`). 이미 테이블이 있는 DB에는 아래를 배포 전후에 직접 확인한다.
+
+### `articles.title` collation (제목 유일성)
+
+제목은 대소문자·전각/반각을 무시하고 악센트는 구분한다(`utf8mb4_0900_as_ci`). 기존 테이블은 기본값(`utf8mb4_0900_ai_ci`)이라 직접 바꿔야 한다.
+
+```sql
+-- 1) 새 기준으로 겹치는 제목이 없는지 확인 (결과가 있으면 정리 후 진행)
+SELECT title COLLATE utf8mb4_0900_as_ci AS t, COUNT(*) FROM articles GROUP BY t HAVING COUNT(*) > 1;
+-- 2) collation 변경
+ALTER TABLE articles MODIFY title VARCHAR(255) COLLATE utf8mb4_0900_as_ci NOT NULL;
+-- 3) 배포 후 유니크 제약이 실제로 생성됐는지 확인 (uk_articles_title 행이 있어야 한다)
+SHOW INDEX FROM articles WHERE Key_name = 'uk_articles_title';
+```
+
+### `article_links.target_key` collation (역링크)
+
+`target_key`는 앱이 만든 비교 키라 바이너리로 비교한다(`utf8mb4_bin`). 테이블이 이미 있으면 직접 바꾼다.
+
+```sql
+ALTER TABLE article_links MODIFY target_key VARCHAR(255) COLLATE utf8mb4_bin NOT NULL;
+```
+
+> MySQL·MongoDB의 비밀번호는 볼륨이 처음 생성될 때만 적용된다. 이후 Secret을 바꾸려면 DB 안에서 비밀번호를 직접 변경하거나 볼륨을 지우고 다시 만들어야 한다.
+
+## 문서 검색 최초 배포의 선행 조건
+
+`search_text`가 없는 기존 MongoDB `articles` 문서는 새 `ArticleMongoEntity`로 읽을 수 없다.
+검색뿐 아니라 Redis 캐시 미스 후 상세 조회와 정합성 검사도 실패할 수 있다.
+기존 데이터 보존 불필요 결정에 따라 백필과 구형 문서 호환 처리는 제공하지 않는다.
+CD는 데이터 초기화나 이 조건의 확인을 자동으로 수행하지 않는다.
+
+1. 대상 DB를 공유하는 이전 버전 앱을 모두 중지한다. 동기화 이벤트와 배치의 쓰기도 중지해야 한다.
+2. 대상 DB와 `articles` 컬렉션을 확인하고 기존 문서를 비운다. 컬렉션과 인덱스는 유지한다.
+3. 새 버전을 기동한다. 새 문서는 동기화 시 `content`와 `search_text`가 함께 저장된다.
+4. MySQL 문서를 유지했다면 Mongo 읽기 뷰의 재생성을 기다린다.
+   문서 생성·수정 시 발생하는 동기화 이벤트 또는 정합성 검사가 누락 문서를 재생성한다. 정합성 검사는 앱 JVM의 기본 시간대에서 매일 04:00에 실행되며 기동 직후 실행되지 않는다.
+   재생성 전에는 Mongo 상세 조회가 404를 반환하거나 검색에서 문서가 누락될 수 있다.
+5. 읽기 뷰 재생성이 완료되고 `search_text` 누락 문서가 없는지 확인한다. 상세 조회·본문 검색을 확인한 후 트래픽을 허용한다.
+
+초기화 대상은 MongoDB의 파생 읽기 뷰다. MySQL·Redis·다른 컬렉션은 이 절차의 삭제 대상이 아니다.
+기존 문서를 유지한 채 새 버전만 기동하고 필드가 자동으로 채워지기를 기다려서는 안 된다.
+
+## 기동 확인 (Repository Variables)
+
+배포 스크립트는 `systemctl restart` 후 앱 포트가 HTTP 응답을 줄 때까지 최대 180초 기다린다.
+그 사이 프로세스가 종료되거나 재시작되면, 또는 시간 안에 응답이 없으면 배포를 실패로 처리한다.
+Secret이 아니라 Settings → Secrets and variables → Actions → **Variables** 탭에 등록한다.
+
+| Variable | 설명 | 기본값 |
+|---|---|---|
+| `STAGE_APP_PORT` | 스테이지 앱이 listen하는 포트 (`server.port`) | `8080` |
+
+## Discord 알림 (공통, 기존 CI와 동일 Secret 재사용)
+
+| Secret | 설명 |
+|---|---|
+| `DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK` | 배포 결과 알림용 Discord 웹훅 URL |

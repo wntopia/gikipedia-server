@@ -3,6 +3,7 @@ package io.github.wntopia.gikipedia.server.domain.history.repository
 import io.github.wntopia.gikipedia.server.domain.history.entity.ArticleSnapshotJpaEntity
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 
 interface ArticleSnapshotRepository : JpaRepository<ArticleSnapshotJpaEntity, Long> {
     /** 대상 리비전 이하에서 가장 가까운(리비전이 가장 큰) 스냅샷. 재구성의 시작점이 된다. */
@@ -19,6 +20,16 @@ interface ArticleSnapshotRepository : JpaRepository<ArticleSnapshotJpaEntity, Lo
 
     /** listRevisions() 병합용 — 압축 페이로드가 실제로 채워진 스냅샷만 가져온다(대부분은 null이라 대상이 적다). */
     fun findByArticleIdAndCompressedInteriorPayloadIsNotNull(articleId: Long): List<ArticleSnapshotJpaEntity>
+
+    /** 압축 페이로드가 붙은 스냅샷 중 [below]보다 낮은 리비전 번호만(내림차순). 페이로드(BLOB)는 읽지 않는다. */
+    @Query(
+        "SELECT s.revision FROM ArticleSnapshotJpaEntity s WHERE s.article.id = :articleId " +
+            "AND s.compressedInteriorPayload IS NOT NULL AND s.revision < :below ORDER BY s.revision DESC",
+    )
+    fun findCompactedRevisionsBelow(
+        @Param("articleId") articleId: Long,
+        @Param("below") below: Int,
+    ): List<Int>
 
     /**
      * 히스토리 압축 배치의 대상 탐색용 — content/compressed_interior_payload(TEXT/BLOB) 로드 없이

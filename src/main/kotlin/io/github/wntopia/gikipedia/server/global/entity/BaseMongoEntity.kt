@@ -6,7 +6,9 @@ import org.springframework.data.annotation.LastModifiedDate
 import java.time.Instant
 
 abstract class BaseMongoEntity {
-    @field:Id val id: String? = null
+    @field:Id
+    var id: String? = null
+        protected set
 
     @field:CreatedDate
     var createdAt: Instant? = null

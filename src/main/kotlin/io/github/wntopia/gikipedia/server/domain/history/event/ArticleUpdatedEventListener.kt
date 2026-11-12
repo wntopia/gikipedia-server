@@ -27,6 +27,8 @@ class ArticleUpdatedEventListener(
             imageUrl = event.imageUrl,
             articleCreatedAt = event.createdAt,
             articleUpdatedAt = event.updatedAt,
+            categoryId = event.categoryId,
+            categoryName = event.categoryName,
         )
     }
 }

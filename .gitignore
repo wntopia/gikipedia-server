@@ -21,6 +21,10 @@ application-local.yml
 application-local.yaml
 application-*.local.yml
 application-*.local.yaml
+application.yaml
+application.yml
+!application.yaml.example
+!application.yml.example
 
 # IDEs
 .idea/*

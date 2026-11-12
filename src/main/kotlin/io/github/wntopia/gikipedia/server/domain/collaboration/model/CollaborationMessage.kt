@@ -17,6 +17,10 @@ data class CollaborationMessage(
     val imageUrl: String? = null,
     /** saved ack */
     val revision: Int? = null,
+    /** save의 편집 요약(선택, 최대 500자 — 넘으면 서버가 자른다) */
+    val summary: String? = null,
+    /** save의 가벼운 수정 여부(선택) */
+    val minorEdit: Boolean? = null,
     /** save의 저장 사유(manual/auto) — 관측용, 로직에 영향 없음 */
     val reason: String? = null,
     /** error 메시지 */

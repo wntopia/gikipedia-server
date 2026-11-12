@@ -29,6 +29,16 @@ interface ArticleHistoryRepository : JpaRepository<ArticleHistoryJpaEntity, Long
         @Param("articleIds") articleIds: Collection<Long>,
     ): List<ArticleLatestRevisionView>
 
+    /** 주어진 문서들 각각의 최신 리비전 편집자 라벨. 기여 원장 도입 이전 문서의 마지막 편집자를 알아내는 데 쓴다. */
+    @Query(
+        "SELECT h.article.id AS articleId, h.editor AS editor FROM ArticleHistoryJpaEntity h " +
+            "WHERE h.article.id IN :articleIds AND h.revision = " +
+            "(SELECT MAX(h2.revision) FROM ArticleHistoryJpaEntity h2 WHERE h2.article.id = h.article.id)",
+    )
+    fun findLatestEditorsIn(
+        @Param("articleIds") articleIds: Collection<Long>,
+    ): List<ArticleLatestEditorView>
+
     /** reconstruct() fallback에서 스냅샷 경계 리비전 1건의 editor/createdAt을 직접 조회한다. */
     fun findByArticleIdAndRevision(
         articleId: Long,
@@ -56,4 +66,10 @@ interface ArticleLatestRevisionView {
     fun getArticleId(): Long
 
     fun getRevision(): Int
+}
+
+interface ArticleLatestEditorView {
+    fun getArticleId(): Long
+
+    fun getEditor(): String
 }

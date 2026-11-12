@@ -20,7 +20,6 @@ import org.mockito.kotlin.whenever
 import org.springframework.test.util.ReflectionTestUtils
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
-import java.util.Optional
 
 /** 읽기 경로(feature flag, Redis→Mongo, MySQL 폴백 없음) 검증. */
 class QueryArticleServiceImplTest {
@@ -46,7 +45,7 @@ class QueryArticleServiceImplTest {
     @Test
     @DisplayName("MYSQL 모드면 캐시/Mongo를 건드리지 않고 MySQL만 조회한다")
     fun mysqlModeQueriesMysqlOnly() {
-        whenever(articleRepository.findById(1L)).thenReturn(Optional.of(article))
+        whenever(articleRepository.findByIdWithCategory(1L)).thenReturn(article)
 
         val result = service(ArticleReadSource.MYSQL).execute(1L)
 
@@ -80,6 +79,7 @@ class QueryArticleServiceImplTest {
                 articleCreatedAt = Instant.now(),
                 articleUpdatedAt = Instant.now(),
                 revision = 2,
+                searchText = "내용",
             )
         whenever(articleMongoRepository.findByDocumentId(1L)).thenReturn(mongoEntity)
 
@@ -97,6 +97,6 @@ class QueryArticleServiceImplTest {
 
         assertThatThrownBy { service(ArticleReadSource.REDIS_MONGO).execute(1L) }
             .isInstanceOf(ExpectedException::class.java)
-        verify(articleRepository, never()).findById(org.mockito.kotlin.any())
+        verify(articleRepository, never()).findByIdWithCategory(org.mockito.kotlin.any())
     }
 }

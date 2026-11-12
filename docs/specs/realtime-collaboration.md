@@ -36,6 +36,8 @@ data class CollaborationMessage(
     val content: String? = null,   // save 요청의 plain text / bootstrap·external-update의 plain text
     val imageUrl: String? = null,  // external-update 전용
     val revision: Int? = null,     // saved ack
+    val summary: String? = null,   // save의 편집 요약 (선택, 최대 500자 — 넘으면 서버가 자름)
+    val minorEdit: Boolean? = null, // save의 가벼운 수정 여부 (선택, 생략 시 false)
     val reason: String? = null,    // save의 manual/auto (관측용)
     val message: String? = null,   // error
 )
@@ -47,7 +49,7 @@ data class CollaborationMessage(
 | `update` | c2s & s2c | Yjs 문서 update(opaque) — 발신자 제외 room 전체 릴레이 |
 | `awareness` | c2s & s2c | awareness update(opaque) — 마찬가지로 릴레이만 |
 | `sync` | c2s only | 디바운스 주기 전체 스냅샷(`dataB64` + `content`) — Redis 영속화·안전망 저장용, 릴레이 안 함 |
-| `save` | c2s only | 명시적 저장(`content` 필수) → `SaveCollaborativeRevisionService` 호출 |
+| `save` | c2s only | 명시적 저장(`content` 필수, `summary`·`minorEdit` 선택) → `SaveCollaborativeRevisionService` 호출. 마지막 참여자 퇴장 시 안전망 저장에는 편집 요약이 없다 |
 | `saved` | s2c, room 전체 | 저장 완료 ack(`revision`) |
 | `external-update` | s2c only | PUT/이미지 업로드로 room 밖에서 바뀐 내용 통지 |
 | `error` | s2c only | 파싱 실패 등 |
@@ -85,12 +87,12 @@ class SaveCollaborativeRevisionService(
     private val articleCacheStore: ArticleCacheStore,
 ) {
     @Transactional
-    fun save(articleId: Long, plainText: String, editor: String): Int? {
+    fun save(articleId: Long, plainText: String, editor: EditorIdentity, metadata: EditMetadata = EditMetadata.NONE): Int? {
         val article = articleRepository.findByIdForUpdate(articleId)
             ?: throw ExpectedException("존재하지 않는 게시글입니다.", HttpStatus.NOT_FOUND)
         val previousContent = article.content
         article.update(plainText, article.imageUrl)
-        val revision = articleHistoryRecorder.record(article, previousContent, plainText, editor)
+        val revision = articleHistoryRecorder.record(article, previousContent, plainText, editor, metadata)
         articleCacheStore.putAfterCommit(ArticleResDto.from(article))
         return revision
     }

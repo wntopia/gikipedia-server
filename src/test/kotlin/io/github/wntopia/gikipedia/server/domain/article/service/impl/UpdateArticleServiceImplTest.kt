@@ -6,9 +6,13 @@ import io.github.wntopia.gikipedia.server.domain.article.entity.ArticleJpaEntity
 import io.github.wntopia.gikipedia.server.domain.article.repository.ArticleRepository
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleCacheStore
 import io.github.wntopia.gikipedia.server.domain.article.service.ArticleUpdateTransactionHelper
+import io.github.wntopia.gikipedia.server.domain.category.entity.CategoryJpaEntity
+import io.github.wntopia.gikipedia.server.domain.category.repository.CategoryRepository
 import io.github.wntopia.gikipedia.server.domain.history.service.ArticleHistoryRecorder
+import io.github.wntopia.gikipedia.server.domain.link.service.ArticleLinkIndexer
 import io.github.wntopia.gikipedia.server.global.security.session.AuthenticationReader
-import io.github.wntopia.gikipedia.server.global.storage.R2Uploader
+import io.github.wntopia.gikipedia.server.global.security.session.EditorIdentity
+import io.github.wntopia.gikipedia.server.global.storage.SeaweedUploader
 import jakarta.servlet.http.HttpSession
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -29,29 +33,32 @@ import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
 /**
- * 수정 시 행 잠금 조회(findByIdForUpdate)를 쓰는지, R2 업로드가 잠금 전에 끝나는지 검증.
+ * 수정 시 행 잠금 조회(findByIdForUpdate)를 쓰는지, SeaweedFS 업로드가 잠금 전에 끝나는지 검증.
  * 행 잠금+기록+캐시 시퀀스 자체는 [ArticleUpdateTransactionHelper]의 실제 인스턴스를 그대로 통해서
  * 검증한다(mock으로 대체하지 않음) — 그래야 기존 검증(findByIdForUpdate 호출, 캐시 반영 등)이 그대로 유효하다.
  * 실제 잠금 동작(동시 트랜잭션 직렬화) 자체는 단위 테스트로 검증할 수 없어 통합 테스트 영역이다.
  */
 class UpdateArticleServiceImplTest {
     private val articleRepository = mock<ArticleRepository>()
-    private val r2Uploader = mock<R2Uploader>()
+    private val seaweedUploader = mock<SeaweedUploader>()
     private val articleHistoryRecorder = mock<ArticleHistoryRecorder>()
     private val authenticationReader = mock<AuthenticationReader>()
     private val articleCacheStore = mock<ArticleCacheStore>()
+    private val articleLinkIndexer = mock<ArticleLinkIndexer>()
     private val transactionTemplate = mock<TransactionTemplate>()
     private val session = mock<HttpSession>()
+    private val categoryRepository = mock<CategoryRepository>()
 
     private val articleUpdateTransactionHelper =
-        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore)
+        ArticleUpdateTransactionHelper(articleRepository, articleHistoryRecorder, articleCacheStore, articleLinkIndexer)
 
     private val service =
         UpdateArticleServiceImpl(
-            r2Uploader,
+            seaweedUploader,
             authenticationReader,
             transactionTemplate,
             articleUpdateTransactionHelper,
+            categoryRepository,
         )
 
     private val article = ArticleJpaEntity(title = "제목", content = "이전 내용", imageUrl = "old.png")
@@ -62,7 +69,7 @@ class UpdateArticleServiceImplTest {
         ReflectionTestUtils.setField(article, "createdAt", Instant.now())
         ReflectionTestUtils.setField(article, "updatedAt", Instant.now())
         whenever(articleRepository.findByIdForUpdate(1L)).thenReturn(article)
-        whenever(authenticationReader.getEditorLabel(session)).thenReturn("2412 홍길동")
+        whenever(authenticationReader.getEditor(session)).thenReturn(EditorIdentity(1L, "2412 홍길동"))
         // TransactionTemplate.execute는 실제 트랜잭션 매니저 없이, 콜백을 그 자리에서 바로 실행하는 것으로 대체한다.
         whenever(transactionTemplate.execute<Pair<ArticleResDto, Int?>>(any())).thenAnswer { invocation ->
             invocation
@@ -106,7 +113,7 @@ class UpdateArticleServiceImplTest {
         val response = service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
 
         assertThat(response.imageUrl).isEqualTo("old.png")
-        verify(r2Uploader, never()).upload(any(), any())
+        verify(seaweedUploader, never()).upload(any(), any())
     }
 
     @Test
@@ -115,5 +122,29 @@ class UpdateArticleServiceImplTest {
         val response = service.execute(1L, UpdateArticleReqDto(content = "새 내용"), session)
 
         verify(articleCacheStore).putAfterCommit(response)
+    }
+
+    @Test
+    @DisplayName("categoryId를 보내면 문서의 분류가 바뀌고, 안 보내면 유지된다")
+    fun changesCategoryOnlyWhenProvided() {
+        val category = CategoryJpaEntity("동아리").also { ReflectionTestUtils.setField(it, "id", 4L) }
+        whenever(categoryRepository.findById(4L)).thenReturn(java.util.Optional.of(category))
+
+        service.execute(1L, UpdateArticleReqDto(content = "새 내용", categoryId = 4L), session)
+        assertThat(article.category).isSameAs(category)
+
+        service.execute(1L, UpdateArticleReqDto(content = "또 새 내용"), session)
+        assertThat(article.category).isSameAs(category)
+    }
+
+    @Test
+    @DisplayName("없는 분류로 바꾸려 하면 404를 던진다")
+    fun rejectsUnknownCategory() {
+        whenever(categoryRepository.findById(99L)).thenReturn(java.util.Optional.empty())
+
+        assertThatThrownBy { service.execute(1L, UpdateArticleReqDto(content = "새 내용", categoryId = 99L), session) }
+            .isInstanceOfSatisfying(ExpectedException::class.java) {
+                assertThat(it.statusCode).isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND)
+            }
     }
 }

@@ -16,4 +16,6 @@ data class ArticleUpdatedEvent(
     val imageUrl: String?,
     val createdAt: Instant,
     val updatedAt: Instant,
+    val categoryId: Long? = null,
+    val categoryName: String? = null,
 )

@@ -15,4 +15,8 @@ data class ArticleHistorySegmentEntry(
     val editor: String,
     val diff: String,
     val createdAt: Instant,
+    // 아래 세 필드는 이 기능 이전에 압축된 세그먼트에는 없으므로 기본값으로 읽는다.
+    val summary: String? = null,
+    val minorEdit: Boolean = false,
+    val charDelta: Int? = null,
 )
