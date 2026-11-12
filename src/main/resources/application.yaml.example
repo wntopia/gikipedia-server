@@ -33,13 +33,6 @@ spring:
       allowed-origins:
         - http://localhost:3000
         - http://localhost:3001
-  cloud:
-    cloudflare:
-      bucket: ${R2_BUCKET:}
-      endpoint: ${R2_ENDPOINT:}
-      access-key: ${R2_ACCESS_KEY_ID:}
-      secret-key: ${R2_SECRET_ACCESS_KEY:}
-      public-url: ${R2_PUBLIC_URL:}
   data:
     mongodb:
       # ArticleMongoEntity.documentId의 @Indexed(unique = true)를 실제 인덱스로 만들려면 필요하다
@@ -114,3 +107,8 @@ sdk:
   exception:
     enabled: true
     use-english-message: false
+
+seaweedfs:
+  filer-url: ${SEAWEEDFS_FILER_URL:http://localhost:8888}
+  # 브라우저가 이미지를 직접 받는 외부 URL. 비어 있으면 이미지 업로드가 500으로 실패한다(#48).
+  public-url: ${SEAWEEDFS_PUBLIC_URL:}
